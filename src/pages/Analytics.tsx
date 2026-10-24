@@ -6,8 +6,9 @@ import {
 } from 'recharts';
 import {
   CheckCircle2, Target, Flame, Trophy, TrendingUp,
-  BarChart2, Clock, Zap, Activity, Layers, BookOpen,
+  BarChart2, Clock, Zap, Activity, Layers, BookOpen, Award
 } from 'lucide-react';
+import { AchievementsList } from '../components/ui/AchievementsList';
 
 const TOPIC_COLORS: Record<string, string> = {
   Stack: '#818cf8',
@@ -205,6 +206,11 @@ export function Analytics() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Gamification Badges & Certificate Trigger */}
+      <div style={{ marginTop: 24 }}>
+        <AchievementsList />
       </div>
     </div>
   );

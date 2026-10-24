@@ -1,8 +1,11 @@
 import { useState } from 'react';
-import { ExternalLink, Check, Bookmark, StickyNote, Star, ChevronDown, ChevronUp, RotateCcw, Sparkles } from 'lucide-react';
+import { ExternalLink, Check, Bookmark, StickyNote, Star, ChevronDown, ChevronUp, RotateCcw, Sparkles, Lightbulb } from 'lucide-react';
 import type { Problem, ProblemStatus } from '../../data/problems';
 import { useApp } from '../../context/AppContext';
 import { DifficultyBadge, TopicBadge } from './Badges';
+import { CompanyLogo } from '../../data/companyLogos';
+import { getProblemMetadata } from '../../data/problemMetadata';
+import { HintsModal } from './HintsModal';
 
 interface ProblemCardProps {
   problem: Problem;
@@ -19,7 +22,9 @@ const STATUS_OPTIONS: { value: ProblemStatus; label: string }[] = [
 export function ProblemCard({ problem, showDay = false }: ProblemCardProps) {
   const { getProblemUserData, toggleSolved, setProblemStatus, updateNotes, toggleRevision, setPersonalDifficulty } = useApp();
   const userData = getProblemUserData(problem.id);
+  const meta = getProblemMetadata(problem.id);
   const [notesOpen, setNotesOpen] = useState(false);
+  const [hintsOpen, setHintsOpen] = useState(false);
   const [notesText, setNotesText] = useState(userData.notes);
   const [notesSaved, setNotesSaved] = useState(true);
 
@@ -134,6 +139,48 @@ export function ProblemCard({ problem, showDay = false }: ProblemCardProps) {
               />
               {statusConfig.label}
             </span>
+
+            {/* Authentic Company Tags */}
+            {meta.companies && meta.companies.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginLeft: 2, flexWrap: 'wrap' }}>
+                {meta.companies.slice(0, 3).map(comp => (
+                  <span
+                    key={comp}
+                    className="chip"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      background: 'rgba(255, 255, 255, 0.04)',
+                      border: '1px solid var(--border)',
+                      padding: '2px 7px',
+                      borderRadius: 5,
+                      fontSize: 10.5,
+                      color: 'var(--text-secondary)',
+                    }}
+                    title={`Asked at ${comp}`}
+                  >
+                    <CompanyLogo company={comp} size={11} />
+                    <span>{comp}</span>
+                  </span>
+                ))}
+                {meta.companies.length > 3 && (
+                  <span
+                    className="chip"
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.02)',
+                      border: '1px solid rgba(255, 255, 255, 0.06)',
+                      color: 'var(--text-muted)',
+                      fontSize: 10,
+                      padding: '2px 5px',
+                    }}
+                    title={`Also asked at ${meta.companies.slice(3).join(', ')}`}
+                  >
+                    +{meta.companies.length - 3}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -228,6 +275,21 @@ export function ProblemCard({ problem, showDay = false }: ProblemCardProps) {
           >
             <Bookmark size={13} fill={userData.needsRevision ? '#fbbf24' : 'none'} />
             {userData.needsRevision ? 'Flagged' : 'Revise'}
+          </button>
+
+          {/* 3-Tier Progressive Hints Button */}
+          <button
+            onClick={() => setHintsOpen(true)}
+            className="btn btn-sm btn-secondary"
+            style={{
+              borderColor: 'rgba(99, 102, 241, 0.35)',
+              color: 'var(--accent-blue-light)',
+              background: 'rgba(99, 102, 241, 0.08)',
+            }}
+            title="Open 3-Tier Progressive Hints"
+          >
+            <Lightbulb size={13} color="var(--accent-blue-light)" />
+            Hints (3)
           </button>
         </div>
 
@@ -356,6 +418,11 @@ export function ProblemCard({ problem, showDay = false }: ProblemCardProps) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 3-Tier Progressive Hints Modal */}
+      {hintsOpen && (
+        <HintsModal problem={problem} onClose={() => setHintsOpen(false)} />
       )}
     </div>
   );

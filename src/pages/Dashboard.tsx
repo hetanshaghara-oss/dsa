@@ -10,6 +10,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
 import type { Analytics } from '../store/analytics';
+import { AchievementsList } from '../components/ui/AchievementsList';
 
 export function Dashboard() {
   const { analytics, store } = useApp();
@@ -306,6 +307,9 @@ export function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Milestones & Gamification Achievements */}
+      <AchievementsList />
 
       {/* Bottom Section: Weekly Chart & Difficulty Cards */}
       <div

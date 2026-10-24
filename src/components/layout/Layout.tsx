@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useLocation, Link } from 'react-router-dom';
-import { Menu, Sun, Moon, Zap, Flame, Calendar, Sparkles } from 'lucide-react';
+import { Menu, Sun, Moon, Zap, Flame, Calendar, Sparkles, Share2 } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { BottomNav } from './BottomNav';
 import { Notification } from '../ui/Notification';
+import { ShareModal } from '../ui/ShareModal';
 import { useApp } from '../../context/AppContext';
 
 export function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const { analytics, store, toggleTheme } = useApp();
   const location = useLocation();
 
@@ -96,6 +98,18 @@ export function Layout() {
               <span>{analytics.currentStreak}d</span>
             </div>
 
+            {/* Share Progress Button */}
+            <button
+              onClick={() => setShareOpen(true)}
+              className="icon-button"
+              style={{ padding: '6px 10px', gap: 5, fontSize: 12, borderRadius: 8 }}
+              aria-label="Share progress"
+              title="Share your daily progress"
+            >
+              <Share2 size={14} color="var(--accent-blue-light)" />
+              <span className="desktop-page-title" style={{ fontSize: 12, fontWeight: 600 }}>Share</span>
+            </button>
+
             {/* Theme Toggle Button */}
             <button
               id="theme-toggle-btn"
@@ -122,6 +136,7 @@ export function Layout() {
         <BottomNav onOpenMenu={() => setSidebarOpen(true)} />
       </div>
 
+      {shareOpen && <ShareModal onClose={() => setShareOpen(false)} />}
       <Notification />
     </div>
   );

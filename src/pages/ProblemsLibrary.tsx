@@ -3,7 +3,9 @@ import { PROBLEMS } from '../data/problems';
 import type { Difficulty, Topic, ProblemStatus } from '../data/problems';
 import { ProblemCard } from '../components/ui/ProblemCard';
 import { useApp } from '../context/AppContext';
-import { Search, Filter, X, BookOpen, Sparkles } from 'lucide-react';
+import { Search, Filter, X, BookOpen, Sparkles, Building2 } from 'lucide-react';
+import { CompanyLogo, TOP_COMPANIES } from '../data/companyLogos';
+import { getProblemMetadata } from '../data/problemMetadata';
 
 type StatusFilter = 'all' | 'not-started' | 'attempted' | 'solved' | 'needs-revision';
 type SortOption = 'day-asc' | 'day-desc' | 'difficulty' | 'status';
@@ -24,6 +26,7 @@ export function ProblemsLibrary() {
   const { getProblemUserData } = useApp();
   const [search, setSearch] = useState('');
   const [topicFilter, setTopicFilter] = useState<Topic | 'all'>('all');
+  const [companyFilter, setCompanyFilter] = useState<string | 'all'>('all');
   const [diffFilter, setDiffFilter] = useState<Difficulty | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [dayFilter, setDayFilter] = useState<number | 'all'>('all');
@@ -39,6 +42,14 @@ export function ProblemsLibrary() {
         p.title.toLowerCase().includes(q) ||
         (p.number && String(p.number).includes(q))
       );
+    }
+
+    // Company
+    if (companyFilter !== 'all') {
+      result = result.filter(p => {
+        const meta = getProblemMetadata(p.id);
+        return meta.companies.some(c => c.toLowerCase() === companyFilter.toLowerCase());
+      });
     }
 
     // Topic
@@ -81,13 +92,14 @@ export function ProblemsLibrary() {
     });
 
     return result;
-  }, [search, topicFilter, diffFilter, statusFilter, dayFilter, sort, getProblemUserData]);
+  }, [search, topicFilter, companyFilter, diffFilter, statusFilter, dayFilter, sort, getProblemUserData]);
 
-  const hasActiveFilters = search || topicFilter !== 'all' || diffFilter !== 'all' || statusFilter !== 'all' || dayFilter !== 'all';
+  const hasActiveFilters = search || topicFilter !== 'all' || companyFilter !== 'all' || diffFilter !== 'all' || statusFilter !== 'all' || dayFilter !== 'all';
 
   const clearFilters = () => {
     setSearch('');
     setTopicFilter('all');
+    setCompanyFilter('all');
     setDiffFilter('all');
     setStatusFilter('all');
     setDayFilter('all');
@@ -102,14 +114,14 @@ export function ProblemsLibrary() {
           All 60 <span className="gradient-text">Challenge Problems</span>
         </h1>
         <p style={{ fontSize: 14.5, color: 'var(--text-secondary)' }}>
-          Search, sort, and filter across the complete 30-day curriculum.
+          Search, sort, and filter across the complete 30-day curriculum by data structure, difficulty, and top tech companies.
         </p>
       </div>
 
       {/* Filter Control Box */}
       <div className="card" style={{ padding: '20px 22px', marginBottom: 22 }}>
         {/* Topic Quick Tabs */}
-        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 12, marginBottom: 16, borderBottom: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 10, marginBottom: 12, borderBottom: '1px solid var(--border)' }}>
           {TOPICS.map(t => {
             const active = topicFilter === t;
             return (
@@ -130,6 +142,56 @@ export function ProblemsLibrary() {
                 }}
               >
                 {t === 'all' ? 'All Topics (60)' : t}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Company Quick Filter Pills with Original Logos */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, overflowX: 'auto', paddingBottom: 12, marginBottom: 16, borderBottom: '1px solid var(--border)' }}>
+          <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.6px', whiteSpace: 'nowrap', marginRight: 4 }}>
+            Company:
+          </span>
+          <button
+            onClick={() => setCompanyFilter('all')}
+            style={{
+              padding: '5px 11px',
+              borderRadius: 8,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+              border: companyFilter === 'all' ? '1px solid var(--accent-cyan)' : '1px solid var(--border)',
+              background: companyFilter === 'all' ? 'rgba(6, 182, 212, 0.2)' : 'rgba(255, 255, 255, 0.03)',
+              color: companyFilter === 'all' ? '#ffffff' : 'var(--text-secondary)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            All Companies
+          </button>
+          {TOP_COMPANIES.map(company => {
+            const active = companyFilter.toLowerCase() === company.toLowerCase();
+            return (
+              <button
+                key={company}
+                onClick={() => setCompanyFilter(active ? 'all' : company)}
+                style={{
+                  padding: '5px 11px',
+                  borderRadius: 8,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  border: active ? '1px solid var(--accent-blue-light)' : '1px solid var(--border)',
+                  background: active ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(139, 92, 246, 0.2))' : 'rgba(255, 255, 255, 0.03)',
+                  color: active ? '#ffffff' : 'var(--text-secondary)',
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <CompanyLogo company={company} size={13} />
+                <span>{company}</span>
               </button>
             );
           })}
@@ -157,7 +219,14 @@ export function ProblemsLibrary() {
         </div>
 
         {/* Dropdowns Row */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+          <select className="input-base" value={companyFilter} onChange={e => setCompanyFilter(e.target.value)} aria-label="Filter by company">
+            <option value="all">All Companies</option>
+            {TOP_COMPANIES.map(c => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+
           <select className="input-base" value={diffFilter} onChange={e => setDiffFilter(e.target.value as Difficulty | 'all')} aria-label="Filter by difficulty">
             {DIFFICULTIES.map(d => <option key={d} value={d}>{d === 'all' ? 'All Difficulties' : d}</option>)}
           </select>
