@@ -55,34 +55,36 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
   };
 
   return (
-    <div className="overlay animate-fade-in" onClick={onClose} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+    <div className="overlay animate-fade-in" onClick={onClose}>
       <div
         className="card"
         onClick={e => e.stopPropagation()}
         style={{
           width: '100%',
-          maxWidth: 680,
-          maxHeight: '92vh',
+          maxWidth: 880,
+          height: 'min(88vh, 840px)',
+          minHeight: 480,
           display: 'flex',
           flexDirection: 'column',
           background: 'var(--bg-card)',
-          borderRadius: 16,
+          borderRadius: 20,
           border: '1px solid var(--border)',
-          boxShadow: 'var(--shadow-lg)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--border)',
           overflow: 'hidden',
+          margin: 'auto',
         }}
       >
         {/* Header */}
-        <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ padding: '20px 26px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: 'rgba(99, 102, 241, 0.15)', color: 'var(--accent-blue-light)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: 11.5, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: 'rgba(99, 102, 241, 0.15)', color: 'var(--accent-blue-light)' }}>
                 Day {problem.day}
               </span>
               <DifficultyBadge difficulty={problem.difficulty} />
               <TopicBadge topic={problem.topic} />
             </div>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.3px', margin: 0 }}>
+            <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.3px', margin: 0 }}>
               {problem.number ? `#${problem.number} ` : ''}{problem.title}
             </h2>
           </div>
@@ -90,15 +92,15 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
           <button
             onClick={onClose}
             className="icon-button"
-            style={{ width: 32, height: 32, padding: 0 }}
+            style={{ width: 34, height: 34, padding: 0 }}
             aria-label="Close hints"
           >
-            <X size={16} />
+            <X size={18} />
           </button>
         </div>
 
         {/* Company Tags & Complexity Pills */}
-        <div style={{ padding: '10px 22px', background: 'rgba(0, 0, 0, 0.25)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+        <div style={{ padding: '10px 26px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Asked at:</span>
             {meta.companies.map(comp => (
@@ -109,75 +111,77 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 5,
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  padding: '2px 7px',
-                  borderRadius: 5,
-                  fontSize: 10.5,
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border)',
+                  padding: '3px 8px',
+                  borderRadius: 6,
+                  fontSize: 11,
                   color: 'var(--text-secondary)',
                 }}
               >
-                <CompanyLogo company={comp} size={12} />
+                <CompanyLogo company={comp} size={13} />
                 <span>{comp}</span>
               </span>
             ))}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 11 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 11.5 }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--accent-cyan-light)' }}>
-              <Clock size={12} /> Time: <strong>{meta.timeComplexity}</strong>
+              <Clock size={13} /> Time: <strong>{meta.timeComplexity}</strong>
             </span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#a78bfa' }}>
-              <Database size={12} /> Space: <strong>{meta.spaceComplexity}</strong>
+              <Database size={13} /> Space: <strong>{meta.spaceComplexity}</strong>
             </span>
           </div>
         </div>
 
         {/* Navigation Tabs */}
-        <div style={{ display: 'flex', padding: '0 22px', borderBottom: '1px solid var(--border)', background: 'rgba(0, 0, 0, 0.1)' }}>
+        <div style={{ display: 'flex', padding: '0 26px', borderBottom: '1px solid var(--border)', background: 'var(--bg-card)' }}>
           <button
             onClick={() => setActiveTab('curated')}
             style={{
-              padding: '11px 16px',
-              fontSize: 13,
+              padding: '13px 18px',
+              fontSize: 13.5,
               fontWeight: 700,
               background: 'none',
               border: 'none',
-              borderBottom: activeTab === 'curated' ? '2px solid var(--accent-blue-light)' : '2px solid transparent',
-              color: activeTab === 'curated' ? '#ffffff' : 'var(--text-muted)',
+              borderBottom: activeTab === 'curated' ? '2px solid var(--accent-blue)' : '2px solid transparent',
+              color: activeTab === 'curated' ? 'var(--text-primary)' : 'var(--text-muted)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: 6,
+              gap: 8,
+              transition: 'all 0.15s ease',
             }}
           >
-            <Lightbulb size={15} color={activeTab === 'curated' ? 'var(--accent-blue-light)' : 'currentColor'} />
+            <Lightbulb size={16} color={activeTab === 'curated' ? 'var(--accent-blue-light)' : 'currentColor'} />
             3-Tier Progressive Hints
           </button>
 
           <button
             onClick={() => setActiveTab('ai')}
             style={{
-              padding: '11px 16px',
-              fontSize: 13,
+              padding: '13px 18px',
+              fontSize: 13.5,
               fontWeight: 700,
               background: 'none',
               border: 'none',
-              borderBottom: activeTab === 'ai' ? '2px solid #06b6d4' : '2px solid transparent',
-              color: activeTab === 'ai' ? '#38bdf8' : 'var(--text-muted)',
+              borderBottom: activeTab === 'ai' ? '2px solid var(--accent-cyan)' : '2px solid transparent',
+              color: activeTab === 'ai' ? 'var(--text-primary)' : 'var(--text-muted)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: 6,
+              gap: 8,
+              transition: 'all 0.15s ease',
             }}
           >
-            <Bot size={15} color={activeTab === 'ai' ? '#06b6d4' : 'currentColor'} />
+            <Bot size={16} color={activeTab === 'ai' ? 'var(--accent-cyan)' : 'currentColor'} />
             ✨ OpenRouter AI Coach
           </button>
         </div>
 
-        {/* Tab Content */}
-        <div style={{ padding: '20px 22px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* Tab Content - Scrollable with minHeight 0 */}
+        <div className="modal-scrollable" style={{ padding: '22px 26px', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
           {activeTab === 'curated' ? (
             <>
               {/* Tier 1: Intuition */}
@@ -352,7 +356,7 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
                   style={{
                     padding: '30px 20px',
                     borderRadius: 12,
-                    background: 'rgba(0, 0, 0, 0.25)',
+                    background: 'var(--bg-secondary)',
                     border: '1px solid var(--border)',
                     textAlign: 'center',
                     display: 'flex',
@@ -383,17 +387,17 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
                 <div
                   className="animate-fade-in"
                   style={{
-                    padding: '16px 18px',
+                    padding: '18px 20px',
                     borderRadius: 12,
-                    background: 'rgba(0, 0, 0, 0.35)',
-                    border: '1px solid rgba(6, 182, 212, 0.3)',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid rgba(6, 182, 212, 0.35)',
                     position: 'relative',
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <Sparkles size={14} color="#06b6d4" />
-                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-cyan-light)' }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-cyan)' }}>
                         AI Coach Guidance
                       </span>
                     </div>
@@ -407,7 +411,7 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
                     </button>
                   </div>
 
-                  <div style={{ fontSize: 13.5, color: '#e2e8f0', lineHeight: 1.65, whiteSpace: 'pre-wrap', maxHeight: 300, overflowY: 'auto' }}>
+                  <div style={{ fontSize: 13.5, color: 'var(--text-primary)', lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>
                     {aiResponse}
                   </div>
                 </div>
@@ -416,7 +420,7 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
                   style={{
                     padding: '24px 20px',
                     borderRadius: 12,
-                    background: 'rgba(255, 255, 255, 0.02)',
+                    background: 'var(--bg-secondary)',
                     border: '1px dashed var(--border)',
                     textAlign: 'center',
                     color: 'var(--text-muted)',
@@ -428,7 +432,7 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
               )}
 
               {/* Custom Input Box */}
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                 <input
                   className="input-base"
                   value={aiPrompt}
@@ -437,7 +441,7 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
                     if (e.key === 'Enter') handleAskAi(aiPrompt);
                   }}
                   placeholder="Ask anything about this problem (e.g. why stack instead of queue?)..."
-                  style={{ flex: 1, height: 38, fontSize: 13 }}
+                  style={{ flex: 1, height: 40, fontSize: 13 }}
                   disabled={isLoading}
                 />
                 <button
@@ -447,10 +451,10 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
                   style={{
                     background: 'linear-gradient(135deg, #06b6d4, #0284c7)',
                     borderColor: 'rgba(6, 182, 212, 0.4)',
-                    padding: '0 14px',
+                    padding: '0 16px',
                   }}
                 >
-                  <Send size={14} />
+                  <Send size={15} />
                 </button>
               </div>
             </div>
@@ -458,11 +462,11 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
         </div>
 
         {/* Modal Footer */}
-        <div style={{ padding: '12px 22px', borderTop: '1px solid var(--border)', background: 'rgba(0, 0, 0, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ padding: '14px 26px', borderTop: '1px solid var(--border)', background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ fontSize: 11.5, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 5 }}>
             <Sparkles size={13} color="#06b6d4" /> Powered by OpenRouter AI API
           </span>
-          <button onClick={onClose} className="btn btn-primary btn-sm">
+          <button onClick={onClose} className="btn btn-primary btn-sm" style={{ padding: '6px 18px' }}>
             Close
           </button>
         </div>
