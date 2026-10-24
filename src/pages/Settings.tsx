@@ -3,13 +3,18 @@ import { useApp } from '../context/AppContext';
 import {
   Settings as SettingsIcon, Calendar, Target, RefreshCcw,
   Download, Upload, Sun, Moon, Bell, BellOff, AlertTriangle,
+  Sparkles, Key, CheckCircle, Eye, EyeOff
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { testAiConnection } from '../services/aiService';
 
 export function SettingsPage() {
   const { store, updateSettings, toggleTheme, exportData, importData, resetAll, showNotification } = useApp();
   const [resetConfirm, setResetConfirm] = useState(false);
   const [importError, setImportError] = useState('');
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [testMessage, setTestMessage] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleExport = () => {
@@ -48,6 +53,21 @@ export function SettingsPage() {
     }
     resetAll();
     setResetConfirm(false);
+  };
+
+  const handleTestAi = async () => {
+    setTestStatus('testing');
+    setTestMessage('Connecting to OpenRouter...');
+    const res = await testAiConnection(store.settings.openRouterApiKey, store.settings.aiModel);
+    if (res.ok) {
+      setTestStatus('success');
+      setTestMessage('Connected! OpenRouter API key is valid.');
+      showNotification('OpenRouter AI connected successfully!', 'success');
+    } else {
+      setTestStatus('error');
+      setTestMessage(res.message);
+      showNotification('Failed to connect to OpenRouter', 'error');
+    }
   };
 
   return (
@@ -137,6 +157,118 @@ export function SettingsPage() {
             In-app reminder notification (no external notifications required).
           </p>
         </div>
+      </div>
+
+      {/* AI Coach (OpenRouter) */}
+      <div className="card" style={{ padding: 24, marginBottom: 16, border: '1px solid rgba(139, 92, 246, 0.3)', background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.04) 0%, rgba(99, 102, 241, 0.02) 100%)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Sparkles size={18} style={{ color: 'var(--accent-purple)' }} />
+            AI DSA Coach (OpenRouter)
+          </div>
+          <span className="badge" style={{ background: 'rgba(139, 92, 246, 0.15)', color: 'var(--accent-purple)', fontSize: 11, fontWeight: 700, padding: '3px 8px' }}>
+            Active
+          </span>
+        </div>
+
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 18, lineHeight: 1.5 }}>
+          Powers dynamic hints, code analysis, edge cases, and algorithmic complexity walkthroughs inside every problem's Hints modal.
+        </p>
+
+        {/* API Key */}
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>
+            OpenRouter API Key
+          </label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ position: 'relative', flex: 1 }}>
+              <input
+                type={showApiKey ? 'text' : 'password'}
+                className="input-base"
+                style={{ width: '100%', paddingRight: 40, fontFamily: 'monospace', fontSize: 13 }}
+                value={store.settings.openRouterApiKey || ''}
+                onChange={e => updateSettings({ openRouterApiKey: e.target.value.trim() })}
+                placeholder="sk-or-v1-..."
+                aria-label="OpenRouter API Key"
+              />
+              <button
+                type="button"
+                onClick={() => setShowApiKey(!showApiKey)}
+                style={{
+                  position: 'absolute',
+                  right: 10,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+                aria-label="Toggle API key visibility"
+              >
+                {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+            <button
+              onClick={handleTestAi}
+              disabled={testStatus === 'testing'}
+              className="btn btn-secondary"
+              style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', fontSize: 13 }}
+            >
+              <Key size={14} />
+              {testStatus === 'testing' ? 'Testing...' : 'Test Key'}
+            </button>
+          </div>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 5 }}>
+            Key is saved privately in your local browser storage and requests go directly to OpenRouter.
+          </p>
+        </div>
+
+        {/* Model Selection */}
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>
+            AI Model
+          </label>
+          <select
+            className="input-base"
+            style={{ width: '100%', maxWidth: 360, fontSize: 13 }}
+            value={store.settings.aiModel || 'google/gemini-2.0-flash-001'}
+            onChange={e => updateSettings({ aiModel: e.target.value })}
+            aria-label="Select AI Model"
+          >
+            <option value="google/gemini-2.0-flash-001">Google Gemini 2.0 Flash (Fastest & Recommended)</option>
+            <option value="deepseek/deepseek-r1">DeepSeek R1 (Advanced Reasoning)</option>
+            <option value="deepseek/deepseek-chat">DeepSeek V3 (Coding Specialist)</option>
+            <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet</option>
+            <option value="meta-llama/llama-3.3-70b-instruct">Meta Llama 3.3 70B Instruct</option>
+            <option value="openai/gpt-4o-mini">OpenAI GPT-4o Mini</option>
+          </select>
+        </div>
+
+        {/* Test Result Feedback */}
+        {testStatus !== 'idle' && (
+          <div
+            style={{
+              padding: '10px 14px',
+              borderRadius: 8,
+              fontSize: 13,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              marginTop: 10,
+              background: testStatus === 'success' ? 'rgba(34, 197, 94, 0.1)' : testStatus === 'error' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(59, 130, 246, 0.1)',
+              border: `1px solid ${testStatus === 'success' ? 'rgba(34, 197, 94, 0.3)' : testStatus === 'error' ? 'rgba(239, 68, 68, 0.3)' : 'rgba(59, 130, 246, 0.3)'}`,
+              color: testStatus === 'success' ? '#22c55e' : testStatus === 'error' ? '#ef4444' : '#3b82f6'
+            }}
+          >
+            {testStatus === 'success' && <CheckCircle size={16} />}
+            {testStatus === 'error' && <AlertTriangle size={16} />}
+            {testStatus === 'testing' && <RefreshCcw size={16} className="animate-spin" />}
+            <span>{testMessage}</span>
+          </div>
+        )}
       </div>
 
       {/* Appearance */}

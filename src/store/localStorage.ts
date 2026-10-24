@@ -12,6 +12,8 @@ export interface Settings {
   startDate: string; // ISO date string YYYY-MM-DD
   dailyTarget: 1 | 2 | 3;
   remindersEnabled: boolean;
+  openRouterApiKey?: string;
+  aiModel?: string;
 }
 
 export interface AppStore {
@@ -24,6 +26,8 @@ const DEFAULT_SETTINGS: Settings = {
   startDate: new Date().toISOString().split('T')[0],
   dailyTarget: 2,
   remindersEnabled: false,
+  openRouterApiKey: (import.meta.env.VITE_OPENROUTER_API_KEY as string) || '',
+  aiModel: 'google/gemini-2.0-flash-001',
 };
 
 const DEFAULT_USER_PROBLEM: UserProblemData = {
