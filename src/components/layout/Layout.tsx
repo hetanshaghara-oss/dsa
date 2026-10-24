@@ -1,0 +1,128 @@
+import { useState, useEffect } from 'react';
+import { Outlet, useLocation, Link } from 'react-router-dom';
+import { Menu, Sun, Moon, Zap, Flame, Calendar, Sparkles } from 'lucide-react';
+import { Sidebar } from './Sidebar';
+import { BottomNav } from './BottomNav';
+import { Notification } from '../ui/Notification';
+import { useApp } from '../../context/AppContext';
+
+export function Layout() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { analytics, store, toggleTheme } = useApp();
+  const location = useLocation();
+
+  // Close sidebar drawer on route navigation
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
+
+  // Close sidebar on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSidebarOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  const getPageTitle = () => {
+    const path = location.pathname;
+    if (path === '/') return 'Dashboard';
+    if (path.startsWith('/challenge/')) return `Day ${path.split('/')[2]} Challenge`;
+    if (path === '/challenge') return '30-Day Curriculum';
+    if (path === '/problems') return 'All 60 Problems';
+    if (path === '/analytics') return 'Progress & Analytics';
+    if (path === '/revision') return 'Revision List';
+    if (path === '/resources') return 'C++ STL Reference';
+    if (path === '/settings') return 'Settings';
+    return 'DSA 30';
+  };
+
+  return (
+    <div className="layout-root">
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      {/* Main content */}
+      <div className="main-content">
+        {/* Top Navbar */}
+        <header className="top-nav">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            <button
+              onClick={() => setSidebarOpen(o => !o)}
+              className="mobile-menu-btn icon-button"
+              aria-label="Toggle sidebar menu"
+            >
+              <Menu size={18} />
+            </button>
+
+            {/* Mobile Brand Logo */}
+            <Link to="/" className="mobile-brand-link" aria-label="DSA 30 Home">
+              <div className="mobile-brand-icon">
+                <Zap size={14} color="white" fill="white" />
+              </div>
+              <span className="mobile-brand-title">
+                DSA <span className="gradient-text">30</span>
+              </span>
+            </Link>
+
+            {/* Page Title or Breadcrumb */}
+            <div className="desktop-page-title">
+              <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.2px' }}>
+                {getPageTitle()}
+              </span>
+            </div>
+          </div>
+
+          <div style={{ flex: 1 }} />
+
+          {/* Quick Metrics Badges */}
+          <div className="header-badges-group">
+            {/* Current Day Badge */}
+            <div className="header-badge header-badge-day">
+              <Calendar size={13} />
+              <span>Day {analytics.currentDay}</span>
+            </div>
+
+            {/* Problems Solved Badge (hidden on small mobile screens to prevent overflow) */}
+            <div className="header-badge header-badge-solved">
+              <span>{analytics.completedProblems}/60 Solved</span>
+            </div>
+
+            {/* Streak Badge */}
+            <div
+              className={`header-badge header-badge-streak ${analytics.currentStreak > 0 ? 'active' : ''}`}
+            >
+              <span className={analytics.currentStreak > 0 ? 'flame-anim' : ''}>🔥</span>
+              <span>{analytics.currentStreak}d</span>
+            </div>
+
+            {/* Theme Toggle Button */}
+            <button
+              id="theme-toggle-btn"
+              onClick={toggleTheme}
+              className="theme-toggle-btn"
+              aria-label="Toggle theme"
+              title={`Switch to ${store.theme === 'dark' ? 'light' : 'dark'} mode`}
+            >
+              {store.theme === 'dark' ? (
+                <Sun size={15} color="#fbbf24" />
+              ) : (
+                <Moon size={15} color="#6366f1" />
+              )}
+            </button>
+          </div>
+        </header>
+
+        {/* Page Content Viewport */}
+        <main className="main-viewport">
+          <Outlet />
+        </main>
+
+        {/* Mobile Bottom Navigation Bar */}
+        <BottomNav onOpenMenu={() => setSidebarOpen(true)} />
+      </div>
+
+      <Notification />
+    </div>
+  );
+}
