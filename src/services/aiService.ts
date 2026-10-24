@@ -1,4 +1,5 @@
-export const DEFAULT_AI_MODEL = 'google/gemini-2.0-flash-001';
+export const DEFAULT_AI_MODEL = 'deepseek/deepseek-chat';
+export const FALLBACK_AI_MODEL = 'openrouter/auto';
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -18,36 +19,53 @@ export async function callOpenRouter(
   model = DEFAULT_AI_MODEL
 ): Promise<string> {
   const key = getApiKey(apiKey);
-
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${key}`,
-      'HTTP-Referer': window.location.origin || 'https://dsa30.app',
-      'X-Title': 'DSA 30 Challenge',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: model,
-      messages: messages,
-      temperature: 0.6,
-      max_tokens: 1200,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => null);
-    const msg = errorData?.error?.message || `API error ${response.status}: ${response.statusText}`;
-    throw new Error(msg);
+  
+  // Guard against decommissioned models like google/gemini-2.0-flash-001
+  let chosenModel = model;
+  if (!chosenModel || chosenModel.includes('gemini-2.0-flash-001') || chosenModel.includes('gemini-2.0-flash-exp')) {
+    chosenModel = DEFAULT_AI_MODEL;
   }
 
-  const data = await response.json();
-  const content = data?.choices?.[0]?.message?.content;
-  if (!content) {
-    throw new Error('Received empty response from AI model.');
-  }
+  const doRequest = async (targetModel: string) => {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${key}`,
+        'HTTP-Referer': window.location.origin || 'https://dsa30.app',
+        'X-Title': 'DSA 30 Challenge',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: targetModel,
+        messages: messages,
+        temperature: 0.6,
+        max_tokens: 1800,
+      }),
+    });
 
-  return content;
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      const msg = errorData?.error?.message || `API error ${response.status}: ${response.statusText}`;
+      throw new Error(msg);
+    }
+
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content;
+    if (!content) {
+      throw new Error('Received empty response from AI model.');
+    }
+    return content;
+  };
+
+  try {
+    return await doRequest(chosenModel);
+  } catch (err: any) {
+    // If the chosen model is no longer served or fails, automatically fallback to openrouter/auto
+    if (chosenModel !== FALLBACK_AI_MODEL && (err?.message?.includes('no provider') || err?.message?.includes('not available') || err?.message?.includes('404'))) {
+      return await doRequest(FALLBACK_AI_MODEL);
+    }
+    throw err;
+  }
 }
 
 export async function generateAiHint(
@@ -55,7 +73,8 @@ export async function generateAiHint(
   problemTopic: string,
   difficulty: string,
   userQuestion: string,
-  apiKey?: string
+  apiKey?: string,
+  model?: string
 ): Promise<string> {
   const systemPrompt = `You are an elite competitive programmer and technical interviewer specializing in C++ and Data Structures & Algorithms.
 Your task is to provide intuitive, empowering, and Socratic hints for the DSA challenge problem.
@@ -75,14 +94,15 @@ Please provide an intuitive hint and mental framework to help solve this problem
   return callOpenRouter([
     { role: 'system', content: systemPrompt },
     { role: 'user', content: userPrompt },
-  ], apiKey);
+  ], apiKey, model);
 }
 
 export async function generateAiSolution(
   problemTitle: string,
   problemTopic: string,
   difficulty: string,
-  apiKey?: string
+  apiKey?: string,
+  model?: string
 ): Promise<string> {
   const systemPrompt = `You are a Senior Software Engineer and DSA expert. Write clean, modern, interview-grade C++ solutions (C++20 style).
 Include:
@@ -99,7 +119,7 @@ Topic: ${problemTopic} (${difficulty})`;
   return callOpenRouter([
     { role: 'system', content: systemPrompt },
     { role: 'user', content: userPrompt },
-  ], apiKey);
+  ], apiKey, model);
 }
 
 export async function testAiConnection(

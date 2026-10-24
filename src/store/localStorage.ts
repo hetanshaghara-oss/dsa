@@ -27,7 +27,7 @@ const DEFAULT_SETTINGS: Settings = {
   dailyTarget: 2,
   remindersEnabled: false,
   openRouterApiKey: (import.meta.env.VITE_OPENROUTER_API_KEY as string) || '',
-  aiModel: 'google/gemini-2.0-flash-001',
+  aiModel: 'deepseek/deepseek-chat',
 };
 
 const DEFAULT_USER_PROBLEM: UserProblemData = {
@@ -60,6 +60,11 @@ export function loadStore(): AppStore {
     const settings: Settings = rawSettings
       ? { ...DEFAULT_SETTINGS, ...JSON.parse(rawSettings) }
       : DEFAULT_SETTINGS;
+
+    // Auto-migrate decommissioned models like google/gemini-2.0-flash-001
+    if (!settings.aiModel || settings.aiModel.includes('gemini-2.0-flash-001') || settings.aiModel.includes('gemini-2.0-flash-exp')) {
+      settings.aiModel = 'deepseek/deepseek-chat';
+    }
 
     const theme = (rawTheme === 'light' ? 'light' : 'dark') as 'dark' | 'light';
 

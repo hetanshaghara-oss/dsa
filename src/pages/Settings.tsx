@@ -234,15 +234,14 @@ export function SettingsPage() {
           <select
             className="input-base"
             style={{ width: '100%', maxWidth: 360, fontSize: 13 }}
-            value={store.settings.aiModel || 'google/gemini-2.0-flash-001'}
+            value={store.settings.aiModel || 'deepseek/deepseek-chat'}
             onChange={e => updateSettings({ aiModel: e.target.value })}
             aria-label="Select AI Model"
           >
-            <option value="google/gemini-2.0-flash-001">Google Gemini 2.0 Flash (Fastest & Recommended)</option>
-            <option value="deepseek/deepseek-r1">DeepSeek R1 (Advanced Reasoning)</option>
-            <option value="deepseek/deepseek-chat">DeepSeek V3 (Coding Specialist)</option>
-            <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet</option>
+            <option value="deepseek/deepseek-chat">DeepSeek V3 (Coding Specialist & Recommended)</option>
+            <option value="openrouter/auto">OpenRouter Auto (Highest Availability)</option>
             <option value="meta-llama/llama-3.3-70b-instruct">Meta Llama 3.3 70B Instruct</option>
+            <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet</option>
             <option value="openai/gpt-4o-mini">OpenAI GPT-4o Mini</option>
           </select>
         </div>

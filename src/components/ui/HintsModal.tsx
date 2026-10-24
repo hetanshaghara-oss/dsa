@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   X, Lightbulb, Compass, Code, Clock, Database, ChevronRight,
-  Sparkles, Bot, Send, Loader2, Copy, Check, RotateCcw
+  Sparkles, Bot, Send, Loader2, Copy, Check, RotateCcw, User, Trash2
 } from 'lucide-react';
 import type { Problem } from '../../data/problems';
 import { getProblemMetadata } from '../../data/problemMetadata';
 import { CompanyLogo } from '../../data/companyLogos';
 import { DifficultyBadge, TopicBadge } from './Badges';
 import { generateAiHint, generateAiSolution } from '../../services/aiService';
+import { useApp } from '../../context/AppContext';
 
 interface HintsModalProps {
   problem: Problem;
@@ -16,30 +17,51 @@ interface HintsModalProps {
 
 export function HintsModal({ problem, onClose }: HintsModalProps) {
   const meta = getProblemMetadata(problem.id);
+  const { store } = useApp();
   const [activeTab, setActiveTab] = useState<'curated' | 'ai'>('curated');
   const [unlockedTier, setUnlockedTier] = useState<1 | 2 | 3>(1);
 
-  // AI Assistant State
+  // AI Chat Assistant State
   const [aiPrompt, setAiPrompt] = useState('');
-  const [aiResponse, setAiResponse] = useState('');
+  const [messages, setMessages] = useState<Array<{ id: string; role: 'user' | 'assistant'; text: string; time: string }>>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const [copied, setCopied] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (activeTab === 'ai') {
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, isLoading, activeTab]);
 
   const handleAskAi = async (promptText: string) => {
-    if (!promptText.trim()) return;
+    const text = promptText.trim();
+    if (!text || isLoading) return;
+
+    const userMsgId = 'u-' + Date.now();
+    const assistantMsgId = 'a-' + Date.now();
+    const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    setMessages(prev => [...prev, { id: userMsgId, role: 'user', text, time: currentTime }]);
+    setAiPrompt('');
     setIsLoading(true);
     setErrorMsg('');
     setActiveTab('ai');
 
     try {
       let response = '';
-      if (promptText.includes('full C++ optimal solution') || promptText.includes('solution code')) {
-        response = await generateAiSolution(problem.title, problem.topic, problem.difficulty);
+      const apiKey = store.settings.openRouterApiKey;
+      const model = store.settings.aiModel || 'deepseek/deepseek-chat';
+
+      if (text.includes('full C++ optimal solution') || text.includes('solution code')) {
+        response = await generateAiSolution(problem.title, problem.topic, problem.difficulty, apiKey, model);
       } else {
-        response = await generateAiHint(problem.title, problem.topic, problem.difficulty, promptText);
+        response = await generateAiHint(problem.title, problem.topic, problem.difficulty, text, apiKey, model);
       }
-      setAiResponse(response);
+
+      setMessages(prev => [...prev, { id: assistantMsgId, role: 'assistant', text: response, time: currentTime }]);
     } catch (err: any) {
       setErrorMsg(err?.message || 'Failed to connect to OpenRouter AI. Please verify your connection.');
     } finally {
@@ -47,11 +69,15 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
     }
   };
 
-  const handleCopyAi = () => {
-    if (!aiResponse) return;
-    navigator.clipboard.writeText(aiResponse);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopyText = (id: string, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleClearChat = () => {
+    setMessages([]);
+    setErrorMsg('');
   };
 
   return (
@@ -314,19 +340,19 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
               )}
             </>
           ) : (
-            /* OpenRouter AI Coach Interactive Tab */
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {/* Quick Prompt Chips */}
-              <div>
-                <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>
-                  Ask AI Coach:
-                </span>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            /* OpenRouter AI Coach Interactive Full-Featured Chat Layout */
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 440, gap: 14 }}>
+              {/* Quick Prompt Chips & Actions Header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                    Quick Prompts:
+                  </span>
                   {[
-                    'Explain intuition with real-world analogy',
-                    'What subtle edge cases could fail?',
-                    'Walk me through a dry run step-by-step',
-                    'Generate full C++ optimal solution',
+                    '💡 Core Invariant',
+                    '⚠️ Subtle Edge Cases',
+                    '🔍 Why this Data Structure?',
+                    '⚡ Optimal C++ Code',
                   ].map(quickPrompt => (
                     <button
                       key={quickPrompt}
@@ -334,128 +360,244 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
                       disabled={isLoading}
                       className="chip"
                       style={{
-                        padding: '5px 10px',
+                        padding: '5px 11px',
                         background: 'rgba(6, 182, 212, 0.1)',
                         border: '1px solid rgba(6, 182, 212, 0.3)',
-                        color: 'var(--accent-cyan-light)',
+                        color: 'var(--accent-cyan)',
                         cursor: 'pointer',
                         fontSize: 11.5,
-                        textAlign: 'left',
-                        borderRadius: 7,
+                        fontWeight: 600,
+                        borderRadius: 8,
+                        transition: 'all 0.15s ease',
                       }}
                     >
                       {quickPrompt}
                     </button>
                   ))}
                 </div>
+
+                {messages.length > 0 && (
+                  <button
+                    onClick={handleClearChat}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: 11, padding: '3px 8px', gap: 4, color: 'var(--text-muted)' }}
+                    title="Clear chat history"
+                  >
+                    <Trash2 size={12} /> Clear Chat
+                  </button>
+                )}
               </div>
 
-              {/* AI Response Display */}
-              {isLoading ? (
-                <div
-                  style={{
-                    padding: '30px 20px',
-                    borderRadius: 12,
-                    background: 'var(--bg-secondary)',
-                    border: '1px solid var(--border)',
-                    textAlign: 'center',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 10,
-                  }}
-                >
-                  <Loader2 size={24} color="#06b6d4" className="animate-spin" />
-                  <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                    OpenRouter AI is crafting tailored hints for <strong>{problem.title}</strong>...
-                  </span>
-                </div>
-              ) : errorMsg ? (
-                <div
-                  style={{
-                    padding: '14px 16px',
-                    borderRadius: 10,
-                    background: 'rgba(239, 68, 68, 0.1)',
-                    border: '1px solid rgba(239, 68, 68, 0.3)',
-                    color: '#f87171',
-                    fontSize: 13,
-                  }}
-                >
-                  {errorMsg}
-                </div>
-              ) : aiResponse ? (
-                <div
-                  className="animate-fade-in"
-                  style={{
-                    padding: '18px 20px',
-                    borderRadius: 12,
-                    background: 'var(--bg-secondary)',
-                    border: '1px solid rgba(6, 182, 212, 0.35)',
-                    position: 'relative',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Sparkles size={14} color="#06b6d4" />
-                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-cyan)' }}>
-                        AI Coach Guidance
-                      </span>
+              {/* Chat Message Stream */}
+              <div
+                className="modal-scrollable"
+                style={{
+                  flex: 1,
+                  minHeight: 280,
+                  maxHeight: 460,
+                  overflowY: 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 14,
+                  paddingRight: 4,
+                }}
+              >
+                {messages.length === 0 && !isLoading && !errorMsg ? (
+                  <div
+                    style={{
+                      margin: 'auto',
+                      padding: '40px 24px',
+                      borderRadius: 16,
+                      background: 'var(--bg-secondary)',
+                      border: '1px dashed var(--border)',
+                      textAlign: 'center',
+                      maxWidth: 520,
+                    }}
+                  >
+                    <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(6, 182, 212, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+                      <Bot size={24} color="var(--accent-cyan)" />
                     </div>
-
-                    <button
-                      onClick={handleCopyAi}
-                      className="btn btn-secondary btn-sm"
-                      style={{ padding: '3px 8px', fontSize: 11, gap: 4 }}
+                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
+                      Ask Your AI DSA Coach
+                    </div>
+                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
+                      Ask for intuition, algorithm trade-offs, edge cases, or full optimal C++ walkthroughs for <strong>{problem.title}</strong>.
+                    </p>
+                  </div>
+                ) : (
+                  messages.map(msg => (
+                    <div
+                      key={msg.id}
+                      className="animate-fade-in"
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                        gap: 4,
+                      }}
                     >
-                      {copied ? <><Check size={12} color="#34d399" /> Copied</> : <><Copy size={12} /> Copy</>}
-                    </button>
-                  </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-muted)', padding: '0 4px' }}>
+                        {msg.role === 'user' ? (
+                          <>
+                            <span>You</span>
+                            <User size={11} />
+                            <span>• {msg.time}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles size={11} color="var(--accent-cyan)" />
+                            <span style={{ color: 'var(--accent-cyan)', fontWeight: 600 }}>AI Coach</span>
+                            <span>• {msg.time}</span>
+                          </>
+                        )}
+                      </div>
 
-                  <div style={{ fontSize: 13.5, color: 'var(--text-primary)', lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>
-                    {aiResponse}
-                  </div>
-                </div>
-              ) : (
-                <div
-                  style={{
-                    padding: '24px 20px',
-                    borderRadius: 12,
-                    background: 'var(--bg-secondary)',
-                    border: '1px dashed var(--border)',
-                    textAlign: 'center',
-                    color: 'var(--text-muted)',
-                    fontSize: 13,
-                  }}
-                >
-                  Click any prompt chip above or ask a custom question below to get real-time hints powered by OpenRouter AI!
-                </div>
-              )}
+                      <div
+                        style={{
+                          maxWidth: msg.role === 'user' ? '82%' : '100%',
+                          width: msg.role === 'user' ? 'auto' : '100%',
+                          padding: msg.role === 'user' ? '12px 16px' : '18px 22px',
+                          borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                          background: msg.role === 'user'
+                            ? 'linear-gradient(135deg, var(--accent-blue), #4f46e5)'
+                            : 'var(--bg-secondary)',
+                          color: msg.role === 'user' ? '#ffffff' : 'var(--text-primary)',
+                          border: msg.role === 'user' ? 'none' : '1px solid var(--border)',
+                          boxShadow: 'var(--shadow-sm)',
+                          fontSize: 13.5,
+                          lineHeight: 1.65,
+                          whiteSpace: 'pre-wrap',
+                          position: 'relative',
+                        }}
+                      >
+                        {msg.role === 'assistant' && (
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                            <button
+                              onClick={() => handleCopyText(msg.id, msg.text)}
+                              className="btn btn-secondary btn-sm"
+                              style={{ padding: '2px 8px', fontSize: 11, gap: 4 }}
+                            >
+                              {copiedId === msg.id ? <><Check size={12} color="#34d399" /> Copied</> : <><Copy size={12} /> Copy</>}
+                            </button>
+                          </div>
+                        )}
+                        <div>{msg.text}</div>
+                      </div>
+                    </div>
+                  ))
+                )}
 
-              {/* Custom Input Box */}
-              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                <input
-                  className="input-base"
+                {/* Loading State */}
+                {isLoading && (
+                  <div
+                    className="animate-fade-in"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      padding: '16px 20px',
+                      borderRadius: 14,
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid var(--border)',
+                      width: 'fit-content',
+                    }}
+                  >
+                    <Loader2 size={18} color="var(--accent-cyan)" className="animate-spin" />
+                    <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                      AI Coach is analyzing <strong>{problem.title}</strong>...
+                    </span>
+                  </div>
+                )}
+
+                {/* Error Banner */}
+                {errorMsg && (
+                  <div
+                    style={{
+                      padding: '14px 18px',
+                      borderRadius: 12,
+                      background: 'rgba(239, 68, 68, 0.08)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      color: '#ef4444',
+                      fontSize: 13,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6,
+                    }}
+                  >
+                    <div style={{ fontWeight: 700 }}>Connection Error</div>
+                    <div>{errorMsg}</div>
+                    <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>
+                      💡 Tip: Verify your key in <strong>Settings → AI DSA Coach</strong> or switch to another model like <em>DeepSeek V3</em> or <em>OpenRouter Auto</em>.
+                    </div>
+                  </div>
+                )}
+
+                <div ref={chatEndRef} />
+              </div>
+
+              {/* Big Interactive Chat Textarea */}
+              <div
+                style={{
+                  background: 'var(--bg-secondary)',
+                  borderRadius: 14,
+                  border: '1px solid var(--border)',
+                  padding: '10px 14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                  boxShadow: 'var(--shadow-sm)',
+                }}
+              >
+                <textarea
+                  ref={textareaRef}
                   value={aiPrompt}
                   onChange={e => setAiPrompt(e.target.value)}
                   onKeyDown={e => {
-                    if (e.key === 'Enter') handleAskAi(aiPrompt);
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleAskAi(aiPrompt);
+                    }
                   }}
-                  placeholder="Ask anything about this problem (e.g. why stack instead of queue?)..."
-                  style={{ flex: 1, height: 40, fontSize: 13 }}
+                  rows={3}
+                  placeholder={`Ask a question or request code for ${problem.title} (e.g. "What is the monotonic queue invariant here?" or "Why does recursion fail on large inputs?")...`}
+                  style={{
+                    width: '100%',
+                    background: 'transparent',
+                    border: 'none',
+                    outline: 'none',
+                    resize: 'none',
+                    fontSize: 13.5,
+                    lineHeight: 1.5,
+                    color: 'var(--text-primary)',
+                    fontFamily: 'inherit',
+                  }}
                   disabled={isLoading}
                 />
-                <button
-                  onClick={() => handleAskAi(aiPrompt)}
-                  disabled={isLoading || !aiPrompt.trim()}
-                  className="btn btn-primary btn-sm"
-                  style={{
-                    background: 'linear-gradient(135deg, #06b6d4, #0284c7)',
-                    borderColor: 'rgba(6, 182, 212, 0.4)',
-                    padding: '0 16px',
-                  }}
-                >
-                  <Send size={15} />
-                </button>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 6, borderTop: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    Press <kbd style={{ padding: '1px 5px', borderRadius: 4, background: 'var(--bg-card)', border: '1px solid var(--border)', fontSize: 10 }}>Enter ↵</kbd> to send, <kbd style={{ padding: '1px 5px', borderRadius: 4, background: 'var(--bg-card)', border: '1px solid var(--border)', fontSize: 10 }}>Shift + Enter</kbd> for new line
+                  </span>
+
+                  <button
+                    onClick={() => handleAskAi(aiPrompt)}
+                    disabled={isLoading || !aiPrompt.trim()}
+                    className="btn btn-primary btn-sm"
+                    style={{
+                      background: 'linear-gradient(135deg, var(--accent-cyan), #0284c7)',
+                      borderColor: 'rgba(6, 182, 212, 0.4)',
+                      padding: '7px 18px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      fontSize: 13,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                    <span>Ask Coach</span>
+                  </button>
+                </div>
               </div>
             </div>
           )}
