@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   X, Lightbulb, Compass, Code, Clock, Database, ChevronRight,
-  Sparkles, Bot, Send, Loader2, Copy, Check, RotateCcw, User, Trash2
+  Sparkles, Bot, Send, Loader2, Copy, Check, RotateCcw, User, Trash2,
+  Maximize2, Minimize2
 } from 'lucide-react';
 import type { Problem } from '../../data/problems';
 import { getProblemMetadata } from '../../data/problemMetadata';
@@ -9,6 +10,11 @@ import { CompanyLogo } from '../../data/companyLogos';
 import { DifficultyBadge, TopicBadge } from './Badges';
 import { generateAiHint, generateAiSolution } from '../../services/aiService';
 import { useApp } from '../../context/AppContext';
+import {
+  getProblemChatHistory, saveProblemChatHistory, clearProblemChatHistory,
+  type ProblemChatMessage
+} from '../../store/localStorage';
+import { FormattedAiMessage } from './FormattedAiMessage';
 
 interface HintsModalProps {
   problem: Problem;
@@ -20,15 +26,22 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
   const { store } = useApp();
   const [activeTab, setActiveTab] = useState<'curated' | 'ai'>('curated');
   const [unlockedTier, setUnlockedTier] = useState<1 | 2 | 3>(1);
+  const [isExpanded, setIsExpanded] = useState(false);
 
-  // AI Chat Assistant State
+  // AI Chat Assistant State - Separate for every single question
   const [aiPrompt, setAiPrompt] = useState('');
-  const [messages, setMessages] = useState<Array<{ id: string; role: 'user' | 'assistant'; text: string; time: string }>>([]);
+  const [messages, setMessages] = useState<ProblemChatMessage[]>(() => getProblemChatHistory(problem.id));
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Reload problem-specific chat when question changes
+  useEffect(() => {
+    setMessages(getProblemChatHistory(problem.id));
+    setErrorMsg('');
+  }, [problem.id]);
 
   useEffect(() => {
     if (activeTab === 'ai') {
@@ -44,7 +57,13 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
     const assistantMsgId = 'a-' + Date.now();
     const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    setMessages(prev => [...prev, { id: userMsgId, role: 'user', text, time: currentTime }]);
+    const newMessages: ProblemChatMessage[] = [
+      ...messages,
+      { id: userMsgId, role: 'user', text, time: currentTime }
+    ];
+    setMessages(newMessages);
+    saveProblemChatHistory(problem.id, newMessages);
+
     setAiPrompt('');
     setIsLoading(true);
     setErrorMsg('');
@@ -61,7 +80,12 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
         response = await generateAiHint(problem.title, problem.topic, problem.difficulty, text, apiKey, model);
       }
 
-      setMessages(prev => [...prev, { id: assistantMsgId, role: 'assistant', text: response, time: currentTime }]);
+      const finalMessages: ProblemChatMessage[] = [
+        ...newMessages,
+        { id: assistantMsgId, role: 'assistant', text: response, time: currentTime }
+      ];
+      setMessages(finalMessages);
+      saveProblemChatHistory(problem.id, finalMessages);
     } catch (err: any) {
       setErrorMsg(err?.message || 'Failed to connect to OpenRouter AI. Please verify your connection.');
     } finally {
@@ -76,6 +100,7 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
   };
 
   const handleClearChat = () => {
+    clearProblemChatHistory(problem.id);
     setMessages([]);
     setErrorMsg('');
   };
@@ -86,22 +111,23 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
         className="card"
         onClick={e => e.stopPropagation()}
         style={{
-          width: '100%',
-          maxWidth: 880,
-          height: 'min(88vh, 840px)',
-          minHeight: 480,
+          width: isExpanded ? '96vw' : '100%',
+          maxWidth: isExpanded ? 1440 : 980,
+          height: isExpanded ? '95vh' : 'min(90vh, 880px)',
+          minHeight: 500,
           display: 'flex',
           flexDirection: 'column',
           background: 'var(--bg-card)',
-          borderRadius: 20,
+          borderRadius: isExpanded ? 16 : 20,
           border: '1px solid var(--border)',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--border)',
+          boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--border)',
           overflow: 'hidden',
           margin: 'auto',
+          transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
         }}
       >
         {/* Header */}
-        <div style={{ padding: '20px 26px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+        <div style={{ padding: '18px 26px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <span style={{ fontSize: 11.5, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: 'rgba(99, 102, 241, 0.15)', color: 'var(--accent-blue-light)' }}>
@@ -115,14 +141,26 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
             </h2>
           </div>
 
-          <button
-            onClick={onClose}
-            className="icon-button"
-            style={{ width: 34, height: 34, padding: 0 }}
-            aria-label="Close hints"
-          >
-            <X size={18} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="icon-button"
+              style={{ width: 34, height: 34, padding: 0 }}
+              title={isExpanded ? 'Exit Big Screen' : 'Expand to Big Screen'}
+              aria-label={isExpanded ? 'Exit Big Screen' : 'Expand to Big Screen'}
+            >
+              {isExpanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+            </button>
+
+            <button
+              onClick={onClose}
+              className="icon-button"
+              style={{ width: 34, height: 34, padding: 0 }}
+              aria-label="Close hints"
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         {/* Company Tags & Complexity Pills */}
@@ -394,7 +432,7 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
                 style={{
                   flex: 1,
                   minHeight: 280,
-                  maxHeight: 460,
+                  maxHeight: isExpanded ? 'calc(95vh - 310px)' : 480,
                   overflowY: 'auto',
                   display: 'flex',
                   flexDirection: 'column',
@@ -456,7 +494,7 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
                         style={{
                           maxWidth: msg.role === 'user' ? '82%' : '100%',
                           width: msg.role === 'user' ? 'auto' : '100%',
-                          padding: msg.role === 'user' ? '12px 16px' : '18px 22px',
+                          padding: msg.role === 'user' ? '12px 18px' : '20px 24px',
                           borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
                           background: msg.role === 'user'
                             ? 'linear-gradient(135deg, var(--accent-blue), #4f46e5)'
@@ -465,23 +503,25 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
                           border: msg.role === 'user' ? 'none' : '1px solid var(--border)',
                           boxShadow: 'var(--shadow-sm)',
                           fontSize: 13.5,
-                          lineHeight: 1.65,
-                          whiteSpace: 'pre-wrap',
                           position: 'relative',
                         }}
                       >
-                        {msg.role === 'assistant' && (
-                          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-                            <button
-                              onClick={() => handleCopyText(msg.id, msg.text)}
-                              className="btn btn-secondary btn-sm"
-                              style={{ padding: '2px 8px', fontSize: 11, gap: 4 }}
-                            >
-                              {copiedId === msg.id ? <><Check size={12} color="#34d399" /> Copied</> : <><Copy size={12} /> Copy</>}
-                            </button>
-                          </div>
+                        {msg.role === 'assistant' ? (
+                          <>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+                              <button
+                                onClick={() => handleCopyText(msg.id, msg.text)}
+                                className="btn btn-secondary btn-sm"
+                                style={{ padding: '2px 8px', fontSize: 11, gap: 4 }}
+                              >
+                                {copiedId === msg.id ? <><Check size={12} color="#34d399" /> Copied Full Text</> : <><Copy size={12} /> Copy All</>}
+                              </button>
+                            </div>
+                            <FormattedAiMessage content={msg.text} />
+                          </>
+                        ) : (
+                          <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{msg.text}</div>
                         )}
-                        <div>{msg.text}</div>
                       </div>
                     </div>
                   ))

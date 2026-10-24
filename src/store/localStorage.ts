@@ -176,3 +176,35 @@ export function updateProblemStatus(
   }
   return updateProblemData(store, problemId, updates);
 }
+
+export interface ProblemChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  text: string;
+  time: string;
+}
+
+export function getProblemChatHistory(problemId: string): ProblemChatMessage[] {
+  try {
+    const raw = localStorage.getItem(`dsa30_ai_chat_${problemId}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+export function saveProblemChatHistory(problemId: string, messages: ProblemChatMessage[]): void {
+  try {
+    localStorage.setItem(`dsa30_ai_chat_${problemId}`, JSON.stringify(messages));
+  } catch (e) {
+    console.error('Failed to save chat history:', e);
+  }
+}
+
+export function clearProblemChatHistory(problemId: string): void {
+  try {
+    localStorage.removeItem(`dsa30_ai_chat_${problemId}`);
+  } catch (e) {
+    console.error('Failed to clear chat history:', e);
+  }
+}

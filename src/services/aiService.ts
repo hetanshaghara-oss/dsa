@@ -78,12 +78,12 @@ export async function generateAiHint(
 ): Promise<string> {
   const systemPrompt = `You are an elite competitive programmer and technical interviewer specializing in C++ and Data Structures & Algorithms.
 Your task is to provide intuitive, empowering, and Socratic hints for the DSA challenge problem.
-Guidelines:
-1. NEVER give away the full code solution immediately unless explicitly asked.
-2. Focus on the core invariant, mental model, or visualization (e.g. "Think of the stack as maintaining the boundary of...").
-3. Explain the "Why" behind the data structure choice (Stack, Monotonic Queue, Two Pointers, DFS/BFS).
-4. Point out subtle edge cases (e.g. empty inputs, duplicates, negative numbers, single nodes).
-5. Format output with clean markdown, bold terms, and concise bullet points.`;
+
+Formatting & Style Requirements:
+1. Organization & Spacing: Always structure your response with clear markdown headers (e.g. ### 💡 Core Intuition, ### ⚙️ Step-by-Step Blueprint, ### ⚠️ Subtle Edge Cases, ### 📐 Mathematical Complexity). Include generous blank lines between sections.
+2. Mathematical Characters: Use clear mathematical notation for Big-O and variables, e.g. O(N), O(log N), O(1), O(N^2), O(V + E), and explicit math symbols (≤, ≥, ≠, →, ←, 2^N).
+3. Mental Model First: Focus on the invariant, data structure choice, and visualization before full code.
+4. Clean Markdown: Use concise bullet points with proper spacing for exceptional readability.`;
 
   const userPrompt = `Problem: "${problemTitle}"
 Topic: ${problemTopic} (${difficulty})
@@ -105,12 +105,17 @@ export async function generateAiSolution(
   model?: string
 ): Promise<string> {
   const systemPrompt = `You are a Senior Software Engineer and DSA expert. Write clean, modern, interview-grade C++ solutions (C++20 style).
-Include:
-1. Key algorithmic idea (2-3 sentences).
-2. Clean, well-commented C++ code using standard STL.
-3. Explicit Time Complexity analysis with reason.
-4. Explicit Space Complexity analysis with reason.
-5. Common pitfalls / edge cases to watch out for in an interview.`;
+
+Formatting & Style Requirements:
+1. Organization: Always structure your answer into these clear markdown sections:
+   ### 💡 Algorithmic Approach & Invariant
+   ### 💻 Optimal C++ Solution (enclosed in \`\`\`cpp ... \`\`\` block with clean comments)
+   ### 📐 Mathematical Complexity Analysis
+      - Time Complexity: O(...) with mathematical derivation
+      - Space Complexity: O(...) with auxiliary memory breakdown
+   ### ⚠️ Critical Edge Cases & Interview Tips
+2. Spacing: Separate paragraphs and bullet points with double line-breaks for maximum readability.
+3. Mathematical Notation: Use standard Big-O notation like O(N), O(log N), O(1), O(N^2), O(V + E), and clean math characters (≤, ≥, ≠, →).`;
 
   const userPrompt = `Write an optimal C++ solution and walkthrough for:
 Problem: "${problemTitle}"
