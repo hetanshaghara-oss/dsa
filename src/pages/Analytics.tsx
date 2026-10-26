@@ -1,5 +1,4 @@
 import { useApp } from '../context/AppContext';
-import { PROBLEMS } from '../data/problems';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -16,6 +15,16 @@ const TOPIC_COLORS: Record<string, string> = {
   Deque: '#f472b6',
   'Linked List': '#2dd4bf',
   'Binary Tree': '#34d399',
+  Array: '#38bdf8',
+  String: '#f59e0b',
+  'Hash Table': '#ec4899',
+  'Two Pointers': '#10b981',
+  'Sliding Window': '#06b6d4',
+  'Dynamic Programming': '#8b5cf6',
+  Graph: '#f97316',
+  'Heap / Priority Queue': '#eab308',
+  Greedy: '#14b8a6',
+  Trie: '#6366f1',
   Mixed: '#fbbf24',
 };
 
@@ -24,12 +33,12 @@ const DIFF_COLORS = { Easy: '#34d399', Medium: '#fbbf24', Hard: '#fb7185' };
 export function Analytics() {
   const { analytics } = useApp();
 
-  const topicData = Object.entries(analytics.byTopic).map(([topic, data]) => ({
+  const topicData = Object.entries(analytics.byTopic).map(([topic, data], idx) => ({
     topic,
     completed: data.completed,
     total: data.total,
-    pct: Math.round((data.completed / data.total) * 100),
-    color: TOPIC_COLORS[topic] || '#818cf8',
+    pct: data.total > 0 ? Math.round((data.completed / data.total) * 100) : 0,
+    color: TOPIC_COLORS[topic] || `hsl(${(idx * 45) % 360}, 75%, 65%)`,
   }));
 
   const diffData = [
@@ -41,12 +50,12 @@ export function Analytics() {
   const pieData = diffData.map(d => ({ name: d.name, value: d.completed, color: d.color }));
 
   const statCards = [
-    { label: 'Completed', value: analytics.completedProblems, sub: 'of 60 problems', icon: CheckCircle2, color: '#34d399', bg: 'rgba(16, 185, 129, 0.12)' },
-    { label: 'Curriculum Done', value: `${analytics.completionPct}%`, sub: 'overall progress', icon: Target, color: '#818cf8', bg: 'rgba(99, 102, 241, 0.12)' },
+    { label: 'Completed', value: analytics.completedProblems, sub: `of ${analytics.totalProblems} questions`, icon: CheckCircle2, color: '#34d399', bg: 'rgba(16, 185, 129, 0.12)' },
+    { label: 'Overall Progress', value: `${analytics.completionPct}%`, sub: `${analytics.remainingProblems} remaining`, icon: Target, color: '#818cf8', bg: 'rgba(99, 102, 241, 0.12)' },
     { label: 'Current Streak', value: `${analytics.currentStreak}d`, sub: 'consecutive active days', icon: Flame, color: '#fbbf24', bg: 'rgba(245, 158, 11, 0.12)' },
     { label: 'Longest Streak', value: `${analytics.longestStreak}d`, sub: 'all-time record', icon: Trophy, color: '#a78bfa', bg: 'rgba(139, 92, 246, 0.12)' },
-    { label: 'Avg / Active Day', value: analytics.avgProblemsPerActiveDay, sub: 'problems per day', icon: TrendingUp, color: '#2dd4bf', bg: 'rgba(20, 184, 166, 0.12)' },
-    { label: 'Incomplete Days', value: analytics.incompleteDays, sub: 'days remaining', icon: Clock, color: '#fb923c', bg: 'rgba(251, 146, 60, 0.12)' },
+    { label: 'Avg / Active Day', value: analytics.avgProblemsPerActiveDay, sub: 'questions per day', icon: TrendingUp, color: '#2dd4bf', bg: 'rgba(20, 184, 166, 0.12)' },
+    { label: 'Library Expansion', value: `${analytics.customProblemsCount} Added`, sub: 'custom questions', icon: Clock, color: '#ec4899', bg: 'rgba(236, 72, 153, 0.12)' },
   ];
 
   return (

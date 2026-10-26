@@ -17,7 +17,7 @@ interface TopicBadgeProps {
   topic: Topic;
 }
 
-const topicClasses: Record<Topic, string> = {
+const topicClasses: Record<string, string> = {
   'Stack': 'topic-stack',
   'Queue': 'topic-queue',
   'Deque': 'topic-deque',
@@ -27,9 +27,31 @@ const topicClasses: Record<Topic, string> = {
 };
 
 export function TopicBadge({ topic }: TopicBadgeProps) {
-  const cls = topicClasses[topic] || 'topic-stack';
+  const cls = topicClasses[topic];
+  if (cls) {
+    return (
+      <span className={`chip ${cls}`}>
+        {topic}
+      </span>
+    );
+  }
+
+  // Dynamic hue for any custom topic
+  let hash = 0;
+  for (let i = 0; i < topic.length; i++) {
+    hash = topic.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = Math.abs(hash % 360);
+
   return (
-    <span className={`chip ${cls}`}>
+    <span
+      className="chip"
+      style={{
+        background: `hsla(${hue}, 70%, 50%, 0.12)`,
+        color: `hsl(${hue}, 80%, 75%)`,
+        border: `1px solid hsla(${hue}, 70%, 50%, 0.3)`,
+      }}
+    >
       {topic}
     </span>
   );

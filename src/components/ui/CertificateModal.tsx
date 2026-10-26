@@ -124,14 +124,14 @@ export function CertificateModal({ onClose }: CertificateModalProps) {
             </div>
 
             <p style={{ fontSize: 14.5, color: '#e2e8f0', maxWidth: 560, margin: '0 auto 28px', lineHeight: 1.65 }}>
-              has successfully completed the intensive <strong style={{ color: '#818cf8' }}>30-Day Algorithm Mastery Challenge</strong>, solving 60 curated LeetCode algorithmic problems across Stack, Queue, Deque, Linked List, and Binary Tree data structures.
+              has successfully solved <strong style={{ color: '#818cf8' }}>{analytics.completedProblems} algorithmic problems</strong> on the DSA Challenge platform, mastering core Data Structures & Algorithms and C++ interview patterns.
             </p>
 
             {/* Badges in Certificate */}
             <div style={{ display: 'flex', justifyContent: 'center', gap: 14, flexWrap: 'wrap', marginBottom: 32 }}>
               {[
-                { label: '60 Problems Solved', icon: '🏆' },
-                { label: 'All 5 Topics Mastered', icon: '⚡' },
+                { label: `${analytics.completedProblems} Problems Solved`, icon: '🏆' },
+                { label: 'Core Topics Mastered', icon: '⚡' },
                 { label: 'Spaced Repetition Verified', icon: '🧠' },
                 { label: 'C++ STL Mastery', icon: '💻' },
               ].map(b => (

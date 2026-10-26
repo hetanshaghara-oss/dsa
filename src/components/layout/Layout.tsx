@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useLocation, Link } from 'react-router-dom';
-import { Menu, Sun, Moon, Zap, Flame, Calendar, Sparkles, Share2 } from 'lucide-react';
+import { Menu, Sun, Moon, Zap, Flame, Calendar, Sparkles, Share2, Plus } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { BottomNav } from './BottomNav';
 import { Notification } from '../ui/Notification';
 import { ShareModal } from '../ui/ShareModal';
+import { AddProblemModal } from '../ui/AddProblemModal';
 import { useApp } from '../../context/AppContext';
 
 export function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
-  const { analytics, store, toggleTheme } = useApp();
+  const { analytics, store, toggleTheme, addProblemModalOpen, setAddProblemModalOpen } = useApp();
   const location = useLocation();
 
   // Close sidebar drawer on route navigation
@@ -31,10 +32,10 @@ export function Layout() {
     const path = location.pathname;
     if (path === '/') return 'Dashboard';
     if (path.startsWith('/challenge/')) return `Day ${path.split('/')[2]} Challenge`;
-    if (path === '/challenge') return '30-Day Curriculum';
-    if (path === '/problems') return 'All 60 Problems';
+    if (path === '/challenge') return '30-Day Curriculum Track';
+    if (path === '/problems') return `Question Library (${analytics.totalProblems})`;
     if (path === '/analytics') return 'Progress & Analytics';
-    if (path === '/revision') return 'Revision List';
+    if (path === '/revision') return 'Smart Spaced Repetition';
     if (path === '/resources') return 'C++ STL Reference';
     if (path === '/settings') return 'Settings';
     return 'DSA 30';
@@ -85,9 +86,9 @@ export function Layout() {
               <span>Day {analytics.currentDay}</span>
             </div>
 
-            {/* Problems Solved Badge (hidden on small mobile screens to prevent overflow) */}
+            {/* Problems Solved Badge */}
             <div className="header-badge header-badge-solved">
-              <span>{analytics.completedProblems}/60 Solved</span>
+              <span>{analytics.completedProblems}/{analytics.totalProblems} Solved</span>
             </div>
 
             {/* Streak Badge */}
@@ -97,6 +98,17 @@ export function Layout() {
               <span className={analytics.currentStreak > 0 ? 'flame-anim' : ''}>🔥</span>
               <span>{analytics.currentStreak}d</span>
             </div>
+
+            {/* Quick Add Question Button */}
+            <button
+              onClick={() => setAddProblemModalOpen(true)}
+              className="btn btn-primary btn-sm"
+              style={{ padding: '6px 12px', fontSize: 12, gap: 5, borderRadius: 8 }}
+              title="Add a custom question to your library"
+            >
+              <Plus size={13} />
+              <span className="desktop-page-title">Add Question</span>
+            </button>
 
             {/* Share Progress Button */}
             <button
@@ -137,6 +149,7 @@ export function Layout() {
       </div>
 
       {shareOpen && <ShareModal onClose={() => setShareOpen(false)} />}
+      {addProblemModalOpen && <AddProblemModal onClose={() => setAddProblemModalOpen(false)} />}
       <Notification />
     </div>
   );

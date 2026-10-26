@@ -3,18 +3,50 @@ import { useApp } from '../context/AppContext';
 import {
   Settings as SettingsIcon, Calendar, Target, RefreshCcw,
   Download, Upload, Sun, Moon, Bell, BellOff, AlertTriangle,
-  Sparkles, Key, CheckCircle, Eye, EyeOff
+  Sparkles, Key, CheckCircle, Eye, EyeOff, Smartphone, Shield,
+  ShieldCheck, Clock, Send, Laptop, MessageSquare, ExternalLink,
+  CheckCircle2, Info
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { testAiConnection } from '../services/aiService';
+import {
+  requestNotificationPermission,
+  sendDailyHabitReminder,
+  isNotificationSupported,
+  getNotificationPermission,
+} from '../services/pwaAndNotifications';
+import { StreakShieldModal } from '../components/ui/StreakShieldModal';
+import {
+  DEFAULT_MOBILE_REMINDERS,
+  type MessageChannel,
+  type MobileNotificationSettings,
+} from '../store/localStorage';
 
 export function SettingsPage() {
-  const { store, updateSettings, toggleTheme, exportData, importData, resetAll, showNotification } = useApp();
+  const {
+    store,
+    analytics,
+    updateSettings,
+    toggleTheme,
+    exportData,
+    importData,
+    resetAll,
+    showNotification,
+    canInstallPWA,
+    installPWA,
+    isStandalone,
+    refillStreakShields,
+    sendMobileReminderNow,
+  } = useApp();
   const [resetConfirm, setResetConfirm] = useState(false);
+  const [shieldModalOpen, setShieldModalOpen] = useState(false);
   const [importError, setImportError] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [testMessage, setTestMessage] = useState('');
+  const [mobileTestStatus, setMobileTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [mobileTestMessage, setMobileTestMessage] = useState('');
+  const [activeSlotTesting, setActiveSlotTesting] = useState<'test' | 'morning' | 'afternoon' | 'evening' | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleExport = () => {
@@ -137,25 +169,580 @@ export function SettingsPage() {
           </p>
         </div>
 
-        {/* Reminders */}
-        <div>
-          <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>
-            Daily Reminders
-          </label>
-          <button
-            onClick={() => updateSettings({ remindersEnabled: !store.settings.remindersEnabled })}
-            className={`btn ${store.settings.remindersEnabled ? 'btn-success' : 'btn-secondary'}`}
-            style={{ display: 'flex', alignItems: 'center', gap: 8 }}
-            aria-label="Toggle daily reminders"
+      </div>
+
+      {/* 📱 Offline-First PWA (Progressive Web App) */}
+      <div className="card" style={{ padding: 24, marginBottom: 16, border: '1px solid rgba(56, 189, 248, 0.3)', background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.05) 0%, rgba(99, 102, 241, 0.03) 100%)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Smartphone size={18} style={{ color: '#38bdf8' }} />
+            Progressive Web App (PWA) & Offline Mode
+          </div>
+          <span
+            className="badge"
+            style={{
+              background: isStandalone ? 'rgba(16, 185, 129, 0.15)' : 'rgba(56, 189, 248, 0.15)',
+              color: isStandalone ? '#34d399' : '#38bdf8',
+              fontSize: 11,
+              fontWeight: 700,
+              padding: '3px 8px',
+            }}
           >
-            {store.settings.remindersEnabled
-              ? <><Bell size={15} /> Reminders On</>
-              : <><BellOff size={15} /> Reminders Off</>
+            {isStandalone ? 'Installed as Native App' : 'Offline-Ready'}
+          </span>
+        </div>
+
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.5 }}>
+          Install DSA 30 on your desktop or mobile home screen. Features offline caching, instant app launch, and zero browser chrome.
+        </p>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          {canInstallPWA && !isStandalone && (
+            <button
+              onClick={installPWA}
+              className="btn btn-primary"
+              style={{ gap: 8, padding: '9px 20px', fontWeight: 800 }}
+            >
+              <Smartphone size={16} /> Install App to Device
+            </button>
+          )}
+
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Laptop size={14} color="#38bdf8" />
+            <span>Service Worker active: Works 100% offline with local cache</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 📱 Daily 3-Time Mobile Reminders & Notifications */}
+      {(() => {
+        const mobileReminders: MobileNotificationSettings = {
+          ...DEFAULT_MOBILE_REMINDERS,
+          ...(store.settings.mobileReminders || {}),
+        };
+
+        const updateMobileReminders = (updates: Partial<MobileNotificationSettings>) => {
+          updateSettings({
+            mobileReminders: {
+              ...mobileReminders,
+              ...updates,
+            },
+          });
+        };
+
+        const handleTestMobile = async (slot: 'test' | 'morning' | 'afternoon' | 'evening' = 'test') => {
+          setMobileTestStatus('testing');
+          setActiveSlotTesting(slot);
+          setMobileTestMessage(
+            slot === 'test'
+              ? `Dispatching test ping to ${mobileReminders.channel.toUpperCase()}...`
+              : `Dispatching ${slot} preview to ${mobileReminders.channel.toUpperCase()}...`
+          );
+
+          if (mobileReminders.channel === 'push') {
+            const granted = await requestNotificationPermission();
+            if (!granted) {
+              setMobileTestStatus('error');
+              setMobileTestMessage('Browser notification permission was denied. Please allow notifications in site permissions.');
+              showNotification('Notification permission denied', 'error');
+              setActiveSlotTesting(null);
+              return;
             }
-          </button>
-          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
-            In-app reminder notification (no external notifications required).
-          </p>
+          }
+
+          try {
+            const res = await sendMobileReminderNow(slot);
+            if (res.success) {
+              setMobileTestStatus('success');
+              setMobileTestMessage(
+                mobileReminders.channel === 'telegram'
+                  ? '🚀 Message delivered to your Telegram! Check your phone right now.'
+                  : mobileReminders.channel === 'whatsapp'
+                  ? '📲 Dispatched to WhatsApp! Check your WhatsApp chat.'
+                  : mobileReminders.channel === 'webhook'
+                  ? '⚡ Webhook payload posted successfully!'
+                  : '🔔 Local Web Push notification triggered!'
+              );
+              showNotification('📲 Mobile alert sent successfully!', 'success');
+            } else {
+              setMobileTestStatus('error');
+              setMobileTestMessage(res.error || 'Failed to dispatch message. Verify your token or credentials.');
+              showNotification(res.error || 'Failed to send alert', 'error');
+            }
+          } catch (err: any) {
+            setMobileTestStatus('error');
+            setMobileTestMessage(err?.message || 'Network error sending alert.');
+          } finally {
+            setActiveSlotTesting(null);
+          }
+        };
+
+        return (
+          <div className="card" style={{ padding: 24, marginBottom: 16, border: '1px solid rgba(59, 130, 246, 0.3)', background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.04) 0%, rgba(139, 92, 246, 0.03) 100%)' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Smartphone size={20} style={{ color: 'var(--accent-blue)' }} />
+                Daily 3-Time Mobile Alerts & Reminders
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span
+                  className="badge"
+                  style={{
+                    background: store.settings.remindersEnabled ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                    color: store.settings.remindersEnabled ? '#34d399' : '#f87171',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    padding: '3px 8px',
+                  }}
+                >
+                  {store.settings.remindersEnabled ? '3x Daily Active' : 'Reminders Disabled'}
+                </span>
+                <button
+                  onClick={() => {
+                    updateSettings({ remindersEnabled: !store.settings.remindersEnabled });
+                    showNotification(
+                      !store.settings.remindersEnabled ? '🔔 3-Time Daily Reminders Activated!' : 'Reminders paused',
+                      'success'
+                    );
+                  }}
+                  className={`btn btn-sm ${store.settings.remindersEnabled ? 'btn-success' : 'btn-secondary'}`}
+                  style={{ gap: 6 }}
+                >
+                  {store.settings.remindersEnabled ? <><Bell size={13} /> Active</> : <><BellOff size={13} /> Disabled</>}
+                </button>
+              </div>
+            </div>
+
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 18, lineHeight: 1.5 }}>
+              Receive automated reminders on your mobile phone <strong>3 times a day</strong> (Morning challenge kickoff, Midday flashcard recall, Evening streak saver) through Telegram, WhatsApp, Webhooks, or Native Web Push.
+            </p>
+
+            {/* Step 1: Channel Selector */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
+                1. Select Mobile Delivery Channel
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+                {([
+                  { id: 'telegram', name: 'Telegram Bot', icon: MessageSquare, badge: 'Recommended', color: '#38bdf8' },
+                  { id: 'whatsapp', name: 'WhatsApp', icon: Smartphone, badge: 'CallMeBot', color: '#22c55e' },
+                  { id: 'webhook', name: 'Webhook', icon: Send, badge: 'Discord / Make', color: '#a855f7' },
+                  { id: 'push', name: 'Browser Push', icon: Bell, badge: 'PWA Web', color: '#fbbf24' },
+                ] as const).map(ch => {
+                  const Icon = ch.icon;
+                  const isSelected = mobileReminders.channel === ch.id;
+                  return (
+                    <button
+                      key={ch.id}
+                      type="button"
+                      onClick={() => updateMobileReminders({ channel: ch.id })}
+                      className="btn"
+                      style={{
+                        padding: '12px 14px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'flex-start',
+                        gap: 6,
+                        background: isSelected ? 'rgba(59, 130, 246, 0.12)' : 'var(--bg-card)',
+                        border: isSelected ? '1.5px solid var(--accent-blue)' : '1px solid var(--border)',
+                        textAlign: 'left',
+                        position: 'relative',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                        <Icon size={18} color={isSelected ? 'var(--accent-blue)' : ch.color} />
+                        <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 4, background: isSelected ? 'var(--accent-blue)' : 'rgba(255, 255, 255, 0.06)', color: isSelected ? '#fff' : 'var(--text-muted)' }}>
+                          {ch.badge}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                        {ch.name}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Step 2: Channel Configuration Credentials */}
+            <div style={{ marginBottom: 22, padding: 16, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Key size={14} color="var(--accent-blue)" />
+                2. Configure {mobileReminders.channel.toUpperCase()} Connection
+              </div>
+
+              {mobileReminders.channel === 'telegram' && (
+                <div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginBottom: 14 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                        Telegram Bot Token
+                      </label>
+                      <input
+                        type="password"
+                        className="input-base"
+                        style={{ width: '100%', fontFamily: 'monospace', fontSize: 12 }}
+                        value={mobileReminders.telegramBotToken || ''}
+                        onChange={e => updateMobileReminders({ telegramBotToken: e.target.value.trim() })}
+                        placeholder="e.g. 7123456789:AAHk..."
+                        aria-label="Telegram Bot Token"
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                        Your Telegram Chat ID
+                      </label>
+                      <input
+                        type="text"
+                        className="input-base"
+                        style={{ width: '100%', fontFamily: 'monospace', fontSize: 12 }}
+                        value={mobileReminders.telegramChatId || ''}
+                        onChange={e => updateMobileReminders({ telegramChatId: e.target.value.trim() })}
+                        placeholder="e.g. 987654321"
+                        aria-label="Telegram Chat ID"
+                      />
+                    </div>
+                  </div>
+
+                  {/* 3-Step Guide */}
+                  <div style={{ padding: 12, background: 'rgba(56, 189, 248, 0.05)', border: '1px solid rgba(56, 189, 248, 0.2)', borderRadius: 8, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                    <div style={{ fontWeight: 700, color: '#38bdf8', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <Info size={13} /> Quick 60-second setup on your phone:
+                    </div>
+                    <div>1. Open Telegram & search for <strong>@BotFather</strong>. Send <code>/newbot</code>, give it any name, and copy the <strong>HTTP API Token</strong> above.</div>
+                    <div>2. Search for <strong>@userinfobot</strong> on Telegram & tap Start to see your numeric <strong>Id</strong> (Chat ID).</div>
+                    <div>3. Open your new bot's chat and tap <strong>Start</strong> so it has permission to message you!</div>
+                  </div>
+                </div>
+              )}
+
+              {mobileReminders.channel === 'whatsapp' && (
+                <div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginBottom: 14 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                        WhatsApp Phone Number (with Country Code)
+                      </label>
+                      <input
+                        type="tel"
+                        className="input-base"
+                        style={{ width: '100%', fontSize: 12 }}
+                        value={mobileReminders.whatsappPhone || ''}
+                        onChange={e => updateMobileReminders({ whatsappPhone: e.target.value.trim() })}
+                        placeholder="e.g. +919876543210 or +1234567890"
+                        aria-label="WhatsApp Phone Number"
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                        CallMeBot API Key
+                      </label>
+                      <input
+                        type="password"
+                        className="input-base"
+                        style={{ width: '100%', fontFamily: 'monospace', fontSize: 12 }}
+                        value={mobileReminders.whatsappApiKey || ''}
+                        onChange={e => updateMobileReminders({ whatsappApiKey: e.target.value.trim() })}
+                        placeholder="e.g. 123456"
+                        aria-label="CallMeBot API Key"
+                      />
+                    </div>
+                  </div>
+
+                  {/* WhatsApp Guide */}
+                  <div style={{ padding: 12, background: 'rgba(34, 197, 94, 0.05)', border: '1px solid rgba(34, 197, 94, 0.2)', borderRadius: 8, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                    <div style={{ fontWeight: 700, color: '#22c55e', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <Info size={13} /> How to get free WhatsApp API key in 30 seconds:
+                    </div>
+                    <div>1. Save phone number <strong>+34 941 86 00 25</strong> as <em>CallMeBot</em> in your mobile contacts.</div>
+                    <div>2. Send message: <code>I allow callmebot to send me messages</code> to that number on WhatsApp.</div>
+                    <div>3. CallMeBot will instantly reply with your personal <strong>apikey</strong>. Paste it above!</div>
+                  </div>
+                </div>
+              )}
+
+              {mobileReminders.channel === 'webhook' && (
+                <div>
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                      Webhook Endpoint URL (Discord, Make, Zapier, Slack)
+                    </label>
+                    <input
+                      type="url"
+                      className="input-base"
+                      style={{ width: '100%', fontFamily: 'monospace', fontSize: 12 }}
+                      value={mobileReminders.customWebhookUrl || ''}
+                      onChange={e => updateMobileReminders({ customWebhookUrl: e.target.value.trim() })}
+                      placeholder="https://discord.com/api/webhooks/... or https://hook.eu1.make.com/..."
+                      aria-label="Custom Webhook URL"
+                    />
+                  </div>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    DSA 30 sends a JSON POST request containing the problem titles, LeetCode links, difficulty, and your current streak. Compatible with Discord webhooks directly.
+                  </p>
+                </div>
+              )}
+
+              {mobileReminders.channel === 'push' && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                      Local Browser & PWA Web Push
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                      Sends native push notifications on desktop or Android mobile when installed as PWA.
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const granted = await requestNotificationPermission();
+                      if (granted) showNotification('Notification permission granted!', 'success');
+                      else showNotification('Permission denied by browser', 'error');
+                    }}
+                    className="btn btn-secondary btn-sm"
+                    style={{ gap: 6 }}
+                  >
+                    <Bell size={13} />
+                    Status: {getNotificationPermission()}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Step 3: 3-Times Daily Schedule Grid */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
+                3. Daily 3-Time Schedule & Triggers
+              </label>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+                {/* Slot 1: Morning */}
+                <div
+                  style={{
+                    padding: 14,
+                    background: 'var(--bg-card)',
+                    border: mobileReminders.slot1Enabled ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid var(--border)',
+                    borderRadius: 8,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                      🌅 Slot 1: Morning
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={mobileReminders.slot1Enabled}
+                      onChange={e => updateMobileReminders({ slot1Enabled: e.target.checked })}
+                      style={{ cursor: 'pointer', width: 16, height: 16 }}
+                      aria-label="Enable morning slot"
+                    />
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>
+                    Day challenge problems & streak motivation kickoff.
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Clock size={14} color="var(--text-muted)" />
+                    <input
+                      type="time"
+                      className="input-base"
+                      style={{ padding: '4px 8px', fontSize: 12, width: 110 }}
+                      value={mobileReminders.slot1Time || '09:00'}
+                      onChange={e => updateMobileReminders({ slot1Time: e.target.value })}
+                      disabled={!mobileReminders.slot1Enabled}
+                    />
+                  </div>
+                </div>
+
+                {/* Slot 2: Midday */}
+                <div
+                  style={{
+                    padding: 14,
+                    background: 'var(--bg-card)',
+                    border: mobileReminders.slot2Enabled ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid var(--border)',
+                    borderRadius: 8,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                      ☀️ Slot 2: Midday
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={mobileReminders.slot2Enabled}
+                      onChange={e => updateMobileReminders({ slot2Enabled: e.target.checked })}
+                      style={{ cursor: 'pointer', width: 16, height: 16 }}
+                      aria-label="Enable midday slot"
+                    />
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>
+                    Spaced repetition recall check for due flashcards.
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Clock size={14} color="var(--text-muted)" />
+                    <input
+                      type="time"
+                      className="input-base"
+                      style={{ padding: '4px 8px', fontSize: 12, width: 110 }}
+                      value={mobileReminders.slot2Time || '14:00'}
+                      onChange={e => updateMobileReminders({ slot2Time: e.target.value })}
+                      disabled={!mobileReminders.slot2Enabled}
+                    />
+                  </div>
+                </div>
+
+                {/* Slot 3: Evening */}
+                <div
+                  style={{
+                    padding: 14,
+                    background: 'var(--bg-card)',
+                    border: mobileReminders.slot3Enabled ? '1px solid rgba(168, 85, 247, 0.4)' : '1px solid var(--border)',
+                    borderRadius: 8,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                      🌙 Slot 3: Evening
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={mobileReminders.slot3Enabled}
+                      onChange={e => updateMobileReminders({ slot3Enabled: e.target.checked })}
+                      style={{ cursor: 'pointer', width: 16, height: 16 }}
+                      aria-label="Enable evening slot"
+                    />
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>
+                    Streak saver reminder to protect shields before midnight.
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Clock size={14} color="var(--text-muted)" />
+                    <input
+                      type="time"
+                      className="input-base"
+                      style={{ padding: '4px 8px', fontSize: 12, width: 110 }}
+                      value={mobileReminders.slot3Time || '20:00'}
+                      onChange={e => updateMobileReminders({ slot3Time: e.target.value })}
+                      disabled={!mobileReminders.slot3Enabled}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Step 4: Test & Live Verification */}
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                  Test message delivery right now to verify your phone gets alerted:
+                </span>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => handleTestMobile('test')}
+                    disabled={mobileTestStatus === 'testing'}
+                    className="btn btn-primary"
+                    style={{ gap: 8, fontWeight: 700, padding: '8px 16px' }}
+                  >
+                    {mobileTestStatus === 'testing' && activeSlotTesting === 'test' ? (
+                      <RefreshCcw size={14} className="animate-spin" />
+                    ) : (
+                      <Send size={14} />
+                    )}
+                    📲 Send Test Message to Phone Now
+                  </button>
+                </div>
+              </div>
+
+              {/* Status Alert */}
+              {mobileTestStatus !== 'idle' && (
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 8,
+                    fontSize: 13,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    marginTop: 12,
+                    background: mobileTestStatus === 'success' ? 'rgba(34, 197, 94, 0.1)' : mobileTestStatus === 'error' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(59, 130, 246, 0.1)',
+                    border: `1px solid ${mobileTestStatus === 'success' ? 'rgba(34, 197, 94, 0.3)' : mobileTestStatus === 'error' ? 'rgba(239, 68, 68, 0.3)' : 'rgba(59, 130, 246, 0.3)'}`,
+                    color: mobileTestStatus === 'success' ? '#22c55e' : mobileTestStatus === 'error' ? '#ef4444' : '#3b82f6',
+                  }}
+                >
+                  {mobileTestStatus === 'success' && <CheckCircle size={16} />}
+                  {mobileTestStatus === 'error' && <AlertTriangle size={16} />}
+                  {mobileTestStatus === 'testing' && <RefreshCcw size={16} className="animate-spin" />}
+                  <span>{mobileTestMessage}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 🛡️ Streak Freeze & Recovery (Duolingo-style) */}
+      <div className="card" style={{ padding: 24, marginBottom: 16, border: '1px solid rgba(245, 158, 11, 0.3)', background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.04) 0%, rgba(99, 102, 241, 0.02) 100%)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <ShieldCheck size={18} style={{ color: '#fbbf24' }} />
+            Duolingo-Style Streak Shields & Freeze Protection
+          </div>
+          <span
+            className="badge"
+            style={{
+              background: analytics.streakFreezesAvailable > 0 ? 'rgba(245, 158, 11, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+              color: analytics.streakFreezesAvailable > 0 ? '#fbbf24' : '#f87171',
+              fontSize: 11,
+              fontWeight: 700,
+              padding: '3px 8px',
+            }}
+          >
+            {analytics.streakFreezesAvailable} / 3 Shields Active
+          </span>
+        </div>
+
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.5 }}>
+          Prevent quitting if you miss a single day of practice. Streak shields automatically absorb missed days so your streak counter remains unbroken.
+        </p>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {[1, 2, 3].map(slot => (
+                <Shield
+                  key={slot}
+                  size={20}
+                  color={slot <= analytics.streakFreezesAvailable ? '#fbbf24' : 'var(--text-muted)'}
+                  fill={slot <= analytics.streakFreezesAvailable ? '#fbbf24' : 'none'}
+                />
+              ))}
+            </div>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+              {analytics.streakFreezesAvailable > 0
+                ? `${analytics.streakFreezesAvailable} Streak Freeze${analytics.streakFreezesAvailable !== 1 ? 's' : ''} Equipped`
+                : 'Shield depleted! Refill below'}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            {analytics.streakFreezesAvailable < 3 && (
+              <button
+                onClick={() => refillStreakShields()}
+                className="btn btn-secondary btn-sm"
+                style={{ gap: 6 }}
+              >
+                <Sparkles size={13} /> Refill (+1 Shield)
+              </button>
+            )}
+            <button
+              onClick={() => setShieldModalOpen(true)}
+              className="btn btn-primary btn-sm"
+              style={{ gap: 6 }}
+            >
+              <Shield size={14} /> Manage Shields & History
+            </button>
+          </div>
         </div>
       </div>
 
@@ -366,6 +953,11 @@ export function SettingsPage() {
           </button>
         )}
       </div>
+
+      {/* Streak Shield Modal */}
+      {shieldModalOpen && (
+        <StreakShieldModal onClose={() => setShieldModalOpen(false)} />
+      )}
     </div>
   );
 }

@@ -118,13 +118,19 @@ code, pre, .font-mono {
   50% { transform: scale(1.1); filter: drop-shadow(0 0 10px rgba(245, 158, 11, 0.8)); }
 }
 
-.animate-fade-in {
-  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0.7;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 
-.flame-anim {
-  animation: flameGlow 2s ease-in-out infinite;
-  display: inline-block;
+.slide-in-right {
+  animation: slideInRight 0.26s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .hero-banner {

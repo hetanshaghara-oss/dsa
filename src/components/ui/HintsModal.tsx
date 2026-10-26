@@ -1,8 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X, Lightbulb, Compass, Code, Clock, Database, ChevronRight,
   Sparkles, Bot, Send, Loader2, Copy, Check, RotateCcw, User, Trash2,
-  Maximize2, Minimize2
+  Maximize2, Minimize2, ExternalLink, Bookmark, StickyNote, Star, Save,
+  Columns2
 } from 'lucide-react';
 import type { Problem } from '../../data/problems';
 import { getProblemMetadata } from '../../data/problemMetadata';
@@ -23,10 +25,17 @@ interface HintsModalProps {
 
 export function HintsModal({ problem, onClose }: HintsModalProps) {
   const meta = getProblemMetadata(problem.id);
-  const { store } = useApp();
-  const [activeTab, setActiveTab] = useState<'curated' | 'ai'>('curated');
+  const { store, getProblemUserData, updateNotes, setPersonalDifficulty, toggleRevision } = useApp();
+  const userData = getProblemUserData(problem.id);
+
+  const [activeTab, setActiveTab] = useState<'curated' | 'ai' | 'notes'>('curated');
   const [unlockedTier, setUnlockedTier] = useState<1 | 2 | 3>(1);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [sideBySide, setSideBySide] = useState(false);
+
+  // Notes state
+  const [notesText, setNotesText] = useState(userData.notes || '');
+  const [notesSaved, setNotesSaved] = useState(true);
 
   // AI Chat Assistant State - Separate for every single question
   const [aiPrompt, setAiPrompt] = useState('');
@@ -37,17 +46,32 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Reload problem-specific chat when question changes
+  // Close on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  // Reload problem-specific chat and notes when question changes
   useEffect(() => {
     setMessages(getProblemChatHistory(problem.id));
+    setNotesText(userData.notes || '');
     setErrorMsg('');
-  }, [problem.id]);
+  }, [problem.id, userData.notes]);
 
   useEffect(() => {
     if (activeTab === 'ai') {
       chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isLoading, activeTab]);
+
+  const handleSaveNotes = () => {
+    updateNotes(problem.id, notesText);
+    setNotesSaved(true);
+  };
 
   const handleAskAi = async (promptText: string) => {
     const text = promptText.trim();
@@ -74,7 +98,7 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
       const apiKey = store.settings.openRouterApiKey;
       const model = store.settings.aiModel || 'deepseek/deepseek-chat';
 
-      if (text.includes('full C++ optimal solution') || text.includes('solution code')) {
+      if (text.includes('full C++ optimal solution') || text.includes('solution code') || text.includes('⚡ Optimal C++ Code')) {
         response = await generateAiSolution(problem.title, problem.topic, problem.difficulty, apiKey, model);
       } else {
         response = await generateAiHint(problem.title, problem.topic, problem.difficulty, text, apiKey, model);
@@ -105,49 +129,145 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
     setErrorMsg('');
   };
 
-  return (
-    <div className="overlay animate-fade-in" onClick={onClose}>
-      <div
-        className="card"
-        onClick={e => e.stopPropagation()}
+  const companiesList = (problem.companies && problem.companies.length > 0) ? problem.companies : meta.companies;
+
+  return createPortal(
+    <>
+      {/* Clean Dimming Backdrop for the left half (NO backdropFilter blur to prevent screen blushing/shimmering) */}
+      {!sideBySide && (
+        <div
+          className="animate-fade-in"
+          onClick={onClose}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.16)',
+            zIndex: 999,
+            cursor: 'pointer',
+          }}
+        />
+      )}
+
+      {/* Big Half-Screen Slide-Over Page Drawer on the Right */}
+      <aside
+        className="slide-in-right"
         style={{
-          width: isExpanded ? '96vw' : '100%',
-          maxWidth: isExpanded ? 1440 : 980,
-          height: isExpanded ? '95vh' : 'min(90vh, 880px)',
-          minHeight: 500,
+          position: 'fixed',
+          top: 0,
+          right: 0,
+          bottom: 0,
+          width: isExpanded ? '86vw' : '52vw',
+          minWidth: 'min(500px, 100vw)',
+          maxWidth: '100vw',
+          height: '100vh',
+          background: 'var(--bg-card)',
+          borderLeft: '1px solid rgba(99, 102, 241, 0.35)',
+          boxShadow: '-15px 0 50px rgba(0, 0, 0, 0.7)',
+          zIndex: 1000,
           display: 'flex',
           flexDirection: 'column',
-          background: 'var(--bg-card)',
-          borderRadius: isExpanded ? 16 : 20,
-          border: '1px solid var(--border)',
-          boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--border)',
           overflow: 'hidden',
-          margin: 'auto',
-          transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+          transition: 'width 0.24s cubic-bezier(0.16, 1, 0.3, 1)',
         }}
       >
-        {/* Header */}
-        <div style={{ padding: '18px 26px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <span style={{ fontSize: 11.5, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: 'rgba(99, 102, 241, 0.15)', color: 'var(--accent-blue-light)' }}>
-                Day {problem.day}
-              </span>
+        {/* Drawer Header */}
+        <div
+          style={{
+            padding: '18px 24px 14px',
+            borderBottom: '1px solid var(--border)',
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: 14,
+            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, transparent 100%)',
+          }}
+        >
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', marginBottom: 8 }}>
+              {problem.day ? (
+                <span
+                  style={{
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    padding: '3px 9px',
+                    borderRadius: 999,
+                    background: 'rgba(99, 102, 241, 0.15)',
+                    color: 'var(--accent-blue-light)',
+                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                  }}
+                >
+                  Day {problem.day}
+                </span>
+              ) : (
+                <span
+                  style={{
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    padding: '3px 9px',
+                    borderRadius: 999,
+                    background: 'rgba(236, 72, 153, 0.15)',
+                    color: '#f472b6',
+                    border: '1px solid rgba(236, 72, 153, 0.3)',
+                  }}
+                >
+                  ✨ Custom Question
+                </span>
+              )}
               <DifficultyBadge difficulty={problem.difficulty} />
               <TopicBadge topic={problem.topic} />
             </div>
-            <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.3px', margin: 0 }}>
+
+            <h2
+              style={{
+                fontSize: 21,
+                fontWeight: 800,
+                color: 'var(--text-primary)',
+                letterSpacing: '-0.3px',
+                margin: 0,
+                lineHeight: 1.25,
+              }}
+            >
               {problem.number ? `#${problem.number} ` : ''}{problem.title}
             </h2>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Action Tools: LeetCode link, Resize, Close */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <a
+              href={problem.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-secondary btn-sm"
+              style={{ gap: 5, padding: '6px 11px', fontSize: 12 }}
+              title="Open problem on LeetCode"
+            >
+              <ExternalLink size={13} />
+              <span>LeetCode</span>
+            </a>
+
             <button
-              onClick={() => setIsExpanded(!isExpanded)}
+              onClick={() => setSideBySide(v => !v)}
+              className="icon-button"
+              style={{
+                width: 34,
+                height: 34,
+                padding: 0,
+                color: sideBySide ? '#38bdf8' : 'var(--text-muted)',
+                background: sideBySide ? 'rgba(56, 189, 248, 0.15)' : undefined,
+                border: sideBySide ? '1px solid rgba(56, 189, 248, 0.4)' : undefined,
+              }}
+              title={sideBySide ? 'Exit Side-by-Side Mode (Restore Backdrop)' : 'Side-by-Side Mode (Interact with left screen directly)'}
+              aria-label={sideBySide ? 'Exit Side-by-Side Mode' : 'Side-by-Side Mode'}
+            >
+              <Columns2 size={16} />
+            </button>
+
+            <button
+              onClick={() => setIsExpanded(v => !v)}
               className="icon-button"
               style={{ width: 34, height: 34, padding: 0 }}
-              title={isExpanded ? 'Exit Big Screen' : 'Expand to Big Screen'}
-              aria-label={isExpanded ? 'Exit Big Screen' : 'Expand to Big Screen'}
+              title={isExpanded ? 'Switch to 50% Half Screen' : 'Expand to Wide Screen (85%)'}
+              aria-label={isExpanded ? 'Switch to 50% Half Screen' : 'Expand to Wide Screen (85%)'}
             >
               {isExpanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
             </button>
@@ -156,18 +276,31 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
               onClick={onClose}
               className="icon-button"
               style={{ width: 34, height: 34, padding: 0 }}
-              aria-label="Close hints"
+              aria-label="Close drawer"
             >
               <X size={18} />
             </button>
           </div>
         </div>
 
-        {/* Company Tags & Complexity Pills */}
-        <div style={{ padding: '10px 26px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+        {/* Company Tags & Complexity Pills Row */}
+        <div
+          style={{
+            padding: '10px 24px',
+            background: 'var(--bg-secondary)',
+            borderBottom: '1px solid var(--border)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 10,
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Asked at:</span>
-            {meta.companies.map(comp => (
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+              Asked at:
+            </span>
+            {companiesList && companiesList.slice(0, 4).map(comp => (
               <span
                 key={comp}
                 className="chip"
@@ -199,13 +332,21 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
           </div>
         </div>
 
-        {/* Navigation Tabs */}
-        <div style={{ display: 'flex', padding: '0 26px', borderBottom: '1px solid var(--border)', background: 'var(--bg-card)' }}>
+        {/* Navigation Tabs Header */}
+        <div
+          style={{
+            display: 'flex',
+            padding: '0 24px',
+            borderBottom: '1px solid var(--border)',
+            background: 'var(--bg-card)',
+            gap: 6,
+          }}
+        >
           <button
             onClick={() => setActiveTab('curated')}
             style={{
-              padding: '13px 18px',
-              fontSize: 13.5,
+              padding: '12px 16px',
+              fontSize: 13,
               fontWeight: 700,
               background: 'none',
               border: 'none',
@@ -214,19 +355,19 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: 8,
+              gap: 7,
               transition: 'all 0.15s ease',
             }}
           >
-            <Lightbulb size={16} color={activeTab === 'curated' ? 'var(--accent-blue-light)' : 'currentColor'} />
-            3-Tier Progressive Hints
+            <Lightbulb size={15} color={activeTab === 'curated' ? 'var(--accent-blue-light)' : 'currentColor'} />
+            3-Tier Hints
           </button>
 
           <button
             onClick={() => setActiveTab('ai')}
             style={{
-              padding: '13px 18px',
-              fontSize: 13.5,
+              padding: '12px 16px',
+              fontSize: 13,
               fontWeight: 700,
               background: 'none',
               border: 'none',
@@ -235,71 +376,103 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: 8,
+              gap: 7,
               transition: 'all 0.15s ease',
             }}
           >
-            <Bot size={16} color={activeTab === 'ai' ? 'var(--accent-cyan)' : 'currentColor'} />
-            ✨ OpenRouter AI Coach
+            <Bot size={15} color={activeTab === 'ai' ? 'var(--accent-cyan)' : 'currentColor'} />
+            ✨ AI Tutor & Solutions
+          </button>
+
+          <button
+            onClick={() => setActiveTab('notes')}
+            style={{
+              padding: '12px 16px',
+              fontSize: 13,
+              fontWeight: 700,
+              background: 'none',
+              border: 'none',
+              borderBottom: activeTab === 'notes' ? '2px solid #fbbf24' : '2px solid transparent',
+              color: activeTab === 'notes' ? 'var(--text-primary)' : 'var(--text-muted)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 7,
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <StickyNote size={15} color={activeTab === 'notes' ? '#fbbf24' : 'currentColor'} />
+            Notes & Rating
           </button>
         </div>
 
-        {/* Tab Content - Scrollable with minHeight 0 */}
-        <div className="modal-scrollable" style={{ padding: '22px 26px', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {activeTab === 'curated' ? (
+        {/* Drawer Scrollable Content Body */}
+        <div
+          className="modal-scrollable"
+          style={{
+            padding: '22px 24px',
+            flex: 1,
+            minHeight: 0,
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+          }}
+        >
+          {activeTab === 'curated' && (
             <>
-              {/* Tier 1: Intuition */}
+              {/* Tier 1: Core Intuition */}
               <div
                 style={{
-                  padding: '16px 18px',
+                  padding: '18px 20px',
                   borderRadius: 12,
-                  background: 'rgba(99, 102, 241, 0.07)',
+                  background: 'rgba(99, 102, 241, 0.08)',
                   border: '1px solid rgba(99, 102, 241, 0.25)',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ width: 24, height: 24, borderRadius: 6, background: 'rgba(99, 102, 241, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Lightbulb size={13} color="var(--accent-blue-light)" />
+                    <div style={{ width: 26, height: 26, borderRadius: 7, background: 'rgba(99, 102, 241, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Lightbulb size={14} color="var(--accent-blue-light)" />
                     </div>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-blue-light)' }}>
-                      Tier 1 — Core Intuition (Nudge)
+                    <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--accent-blue-light)' }}>
+                      Tier 1 — Core Intuition (Mental Model)
                     </span>
                   </div>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: '#34d399', background: 'rgba(16, 185, 129, 0.15)', padding: '2px 7px', borderRadius: 999 }}>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: '#34d399', background: 'rgba(16, 185, 129, 0.15)', padding: '2px 8px', borderRadius: 999 }}>
                     Unlocked
                   </span>
                 </div>
-                <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
+                <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.65, margin: 0 }}>
                   {meta.hints[0]}
                 </p>
               </div>
 
-              {/* Tier 2: Approach & Pattern */}
+              {/* Tier 2: Algorithmic Approach & Pattern */}
               {unlockedTier >= 2 ? (
                 <div
                   className="animate-fade-in"
                   style={{
-                    padding: '16px 18px',
+                    padding: '18px 20px',
                     borderRadius: 12,
-                    background: 'rgba(6, 182, 212, 0.07)',
+                    background: 'rgba(6, 182, 212, 0.08)',
                     border: '1px solid rgba(6, 182, 212, 0.25)',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ width: 24, height: 24, borderRadius: 6, background: 'rgba(6, 182, 212, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Compass size={13} color="var(--accent-cyan-light)" />
+                      <div style={{ width: 26, height: 26, borderRadius: 7, background: 'rgba(6, 182, 212, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Compass size={14} color="var(--accent-cyan-light)" />
                       </div>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-cyan-light)' }}>
-                        Tier 2 — Algorithmic Approach & Pattern
+                      <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--accent-cyan-light)' }}>
+                        Tier 2 — Algorithmic Approach & Data Structure
                       </span>
                     </div>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: '#34d399', background: 'rgba(16, 185, 129, 0.15)', padding: '2px 7px', borderRadius: 999 }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: '#34d399', background: 'rgba(16, 185, 129, 0.15)', padding: '2px 8px', borderRadius: 999 }}>
                       Unlocked
                     </span>
                   </div>
-                  <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
+                  <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.65, margin: 0 }}>
                     {meta.hints[1]}
                   </p>
                 </div>
@@ -309,17 +482,17 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
                   className="btn btn-secondary"
                   style={{
                     width: '100%',
-                    padding: '13px 16px',
+                    padding: '14px 18px',
                     justifyContent: 'space-between',
                     borderStyle: 'dashed',
                     background: 'rgba(255, 255, 255, 0.02)',
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Compass size={15} color="var(--text-muted)" />
-                    <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Unlock Tier 2: Algorithmic Blueprint</span>
+                    <Compass size={16} color="var(--text-muted)" />
+                    <span style={{ fontSize: 13.5, color: 'var(--text-primary)', fontWeight: 600 }}>Unlock Tier 2: Algorithmic Blueprint</span>
                   </div>
-                  <span style={{ fontSize: 11, color: 'var(--accent-blue-light)', display: 'flex', alignItems: 'center', gap: 3 }}>
+                  <span style={{ fontSize: 12, color: 'var(--accent-blue-light)', display: 'flex', alignItems: 'center', gap: 4 }}>
                     Reveal Hint <ChevronRight size={14} />
                   </span>
                 </button>
@@ -330,26 +503,26 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
                 <div
                   className="animate-fade-in"
                   style={{
-                    padding: '16px 18px',
+                    padding: '18px 20px',
                     borderRadius: 12,
-                    background: 'rgba(245, 158, 11, 0.07)',
+                    background: 'rgba(245, 158, 11, 0.08)',
                     border: '1px solid rgba(245, 158, 11, 0.25)',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ width: 24, height: 24, borderRadius: 6, background: 'rgba(245, 158, 11, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Code size={13} color="#fbbf24" />
+                      <div style={{ width: 26, height: 26, borderRadius: 7, background: 'rgba(245, 158, 11, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Code size={14} color="#fbbf24" />
                       </div>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: '#fbbf24' }}>
-                        Tier 3 — Pseudocode & Key Edge Cases
+                      <span style={{ fontSize: 13.5, fontWeight: 700, color: '#fbbf24' }}>
+                        Tier 3 — Step-by-Step Logic & Edge Cases
                       </span>
                     </div>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: '#34d399', background: 'rgba(16, 185, 129, 0.15)', padding: '2px 7px', borderRadius: 999 }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: '#34d399', background: 'rgba(16, 185, 129, 0.15)', padding: '2px 8px', borderRadius: 999 }}>
                       Unlocked
                     </span>
                   </div>
-                  <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
+                  <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.65, margin: 0 }}>
                     {meta.hints[2]}
                   </p>
                 </div>
@@ -360,28 +533,62 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
                   className="btn btn-secondary"
                   style={{
                     width: '100%',
-                    padding: '13px 16px',
+                    padding: '14px 18px',
                     justifyContent: 'space-between',
                     borderStyle: 'dashed',
                     background: 'rgba(255, 255, 255, 0.02)',
-                    opacity: unlockedTier < 2 ? 0.4 : 1,
+                    opacity: unlockedTier < 2 ? 0.45 : 1,
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Code size={15} color="var(--text-muted)" />
-                    <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Unlock Tier 3: Step-by-Step Logic</span>
+                    <Code size={16} color="var(--text-muted)" />
+                    <span style={{ fontSize: 13.5, color: 'var(--text-primary)', fontWeight: 600 }}>Unlock Tier 3: Invariant & Pseudocode</span>
                   </div>
-                  <span style={{ fontSize: 11, color: 'var(--accent-blue-light)', display: 'flex', alignItems: 'center', gap: 3 }}>
+                  <span style={{ fontSize: 12, color: 'var(--accent-blue-light)', display: 'flex', alignItems: 'center', gap: 4 }}>
                     Reveal Hint <ChevronRight size={14} />
                   </span>
                 </button>
               )}
+
+              {/* Direct Callout to AI Code generator */}
+              <div
+                style={{
+                  marginTop: 10,
+                  padding: '16px 20px',
+                  borderRadius: 12,
+                  background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.1) 0%, rgba(99, 102, 241, 0.08) 100%)',
+                  border: '1px solid rgba(6, 182, 212, 0.25)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)' }}>
+                    Need full C++ implementation with line-by-line explanation?
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                    Our AI Coach writes interview-grade C++ solutions.
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleAskAi('⚡ Optimal C++ Code')}
+                  className="btn btn-primary btn-sm"
+                  style={{ background: 'linear-gradient(135deg, var(--accent-cyan), #0284c7)', gap: 6 }}
+                >
+                  <Bot size={14} /> Generate C++ Solution
+                </button>
+              </div>
             </>
-          ) : (
-            /* OpenRouter AI Coach Interactive Full-Featured Chat Layout */
-            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 440, gap: 14 }}>
-              {/* Quick Prompt Chips & Actions Header */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>
+          )}
+
+          {activeTab === 'ai' && (
+            /* AI Coach Full Interactive Chat */
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 450, gap: 14 }}>
+              {/* Quick Prompt Chips */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, paddingBottom: 8, borderBottom: '1px solid var(--border)' }}>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                   <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
                     Quick Prompts:
@@ -389,7 +596,7 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
                   {[
                     '💡 Core Invariant',
                     '⚠️ Subtle Edge Cases',
-                    '🔍 Why this Data Structure?',
+                    '🔍 Data Structure Trade-offs',
                     '⚡ Optimal C++ Code',
                   ].map(quickPrompt => (
                     <button
@@ -426,13 +633,12 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
                 )}
               </div>
 
-              {/* Chat Message Stream */}
+              {/* Message Stream */}
               <div
                 className="modal-scrollable"
                 style={{
                   flex: 1,
                   minHeight: 280,
-                  maxHeight: isExpanded ? 'calc(95vh - 310px)' : 480,
                   overflowY: 'auto',
                   display: 'flex',
                   flexDirection: 'column',
@@ -449,7 +655,7 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
                       background: 'var(--bg-secondary)',
                       border: '1px dashed var(--border)',
                       textAlign: 'center',
-                      maxWidth: 520,
+                      maxWidth: 480,
                     }}
                   >
                     <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(6, 182, 212, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
@@ -494,7 +700,7 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
                         style={{
                           maxWidth: msg.role === 'user' ? '82%' : '100%',
                           width: msg.role === 'user' ? 'auto' : '100%',
-                          padding: msg.role === 'user' ? '12px 18px' : '20px 24px',
+                          padding: msg.role === 'user' ? '12px 18px' : '20px 22px',
                           borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
                           background: msg.role === 'user'
                             ? 'linear-gradient(135deg, var(--accent-blue), #4f46e5)'
@@ -559,15 +765,12 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
                       border: '1px solid rgba(239, 68, 68, 0.3)',
                       color: '#ef4444',
                       fontSize: 13,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 6,
                     }}
                   >
                     <div style={{ fontWeight: 700 }}>Connection Error</div>
                     <div>{errorMsg}</div>
                     <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>
-                      💡 Tip: Verify your key in <strong>Settings → AI DSA Coach</strong> or switch to another model like <em>DeepSeek V3</em> or <em>OpenRouter Auto</em>.
+                      💡 Tip: Verify your key in <strong>Settings → AI Coach</strong> or switch to another model.
                     </div>
                   </div>
                 )}
@@ -575,7 +778,7 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
                 <div ref={chatEndRef} />
               </div>
 
-              {/* Big Interactive Chat Textarea */}
+              {/* Interactive Chat Input Textarea */}
               <div
                 style={{
                   background: 'var(--bg-secondary)',
@@ -599,7 +802,7 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
                     }
                   }}
                   rows={3}
-                  placeholder={`Ask a question or request code for ${problem.title} (e.g. "What is the monotonic queue invariant here?" or "Why does recursion fail on large inputs?")...`}
+                  placeholder={`Ask a question or request code for ${problem.title} (e.g. "Explain time complexity" or "Provide full C++ optimal solution")...`}
                   style={{
                     width: '100%',
                     background: 'transparent',
@@ -616,7 +819,7 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
 
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 6, borderTop: '1px solid rgba(255, 255, 255, 0.05)' }}>
                   <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                    Press <kbd style={{ padding: '1px 5px', borderRadius: 4, background: 'var(--bg-card)', border: '1px solid var(--border)', fontSize: 10 }}>Enter ↵</kbd> to send, <kbd style={{ padding: '1px 5px', borderRadius: 4, background: 'var(--bg-card)', border: '1px solid var(--border)', fontSize: 10 }}>Shift + Enter</kbd> for new line
+                    Press <kbd style={{ padding: '1px 5px', borderRadius: 4, background: 'var(--bg-card)', border: '1px solid var(--border)', fontSize: 10 }}>Enter ↵</kbd> to send
                   </span>
 
                   <button
@@ -641,18 +844,131 @@ export function HintsModal({ problem, onClose }: HintsModalProps) {
               </div>
             </div>
           )}
+
+          {activeTab === 'notes' && (
+            /* Notes & Rating Tab */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              {/* Rating and Revision row */}
+              <div
+                style={{
+                  padding: '16px 18px',
+                  borderRadius: 12,
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 12,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
+                    Personal Difficulty Rating
+                  </div>
+                  <div style={{ display: 'flex', gap: 5 }}>
+                    {[1, 2, 3, 4, 5].map(star => (
+                      <button
+                        key={star}
+                        onClick={() => setPersonalDifficulty(problem.id, userData.personalDifficulty === star ? 0 : star)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: 2,
+                        }}
+                      >
+                        <Star
+                          size={18}
+                          fill={userData.personalDifficulty >= star ? '#fbbf24' : 'none'}
+                          color={userData.personalDifficulty >= star ? '#fbbf24' : 'rgba(255, 255, 255, 0.2)'}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => toggleRevision(problem.id)}
+                  className={`btn btn-sm ${userData.needsRevision ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ gap: 6 }}
+                >
+                  <Bookmark size={14} fill={userData.needsRevision ? 'currentColor' : 'none'} />
+                  {userData.needsRevision ? 'Flagged for Revision' : 'Flag for Revision'}
+                </button>
+              </div>
+
+              {/* Editable Notes Textarea */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                    My Problem Notes & Key Takeaways
+                  </label>
+                  {!notesSaved && (
+                    <span style={{ fontSize: 11, color: '#fbbf24' }}>● Unsaved changes</span>
+                  )}
+                </div>
+
+                <textarea
+                  rows={8}
+                  value={notesText}
+                  onChange={e => {
+                    setNotesText(e.target.value);
+                    setNotesSaved(false);
+                  }}
+                  placeholder="Record your invariants, subtle edge cases, interview mistakes, or custom mental models here..."
+                  style={{
+                    width: '100%',
+                    padding: '14px',
+                    borderRadius: 12,
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-primary)',
+                    fontSize: 13.5,
+                    lineHeight: 1.6,
+                    resize: 'vertical',
+                    fontFamily: 'inherit',
+                  }}
+                />
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+                  <button
+                    onClick={handleSaveNotes}
+                    className="btn btn-primary btn-sm"
+                    style={{ gap: 6, padding: '7px 16px' }}
+                  >
+                    <Save size={14} /> Save Notes
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Modal Footer */}
-        <div style={{ padding: '14px 26px', borderTop: '1px solid var(--border)', background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        {/* Drawer Bottom Footer */}
+        <div
+          style={{
+            padding: '14px 24px',
+            borderTop: '1px solid var(--border)',
+            background: 'var(--bg-secondary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
           <span style={{ fontSize: 11.5, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 5 }}>
             <Sparkles size={13} color="#06b6d4" /> Powered by OpenRouter AI API
           </span>
-          <button onClick={onClose} className="btn btn-primary btn-sm" style={{ padding: '6px 18px' }}>
-            Close
+          <button
+            onClick={onClose}
+            className="btn btn-secondary btn-sm"
+            style={{ padding: '6px 18px' }}
+          >
+            Close Drawer
           </button>
         </div>
-      </div>
-    </div>
+      </aside>
+    </>,
+    document.body
   );
 }

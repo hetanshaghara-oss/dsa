@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { ExternalLink, Check, Bookmark, StickyNote, Star, ChevronDown, ChevronUp, RotateCcw, Sparkles, Lightbulb } from 'lucide-react';
+import { ExternalLink, Check, Bookmark, StickyNote, Star, ChevronDown, ChevronUp, RotateCcw, Sparkles, Lightbulb, Trash2, Brain } from 'lucide-react';
 import type { Problem, ProblemStatus } from '../../data/problems';
 import { useApp } from '../../context/AppContext';
 import { DifficultyBadge, TopicBadge } from './Badges';
 import { CompanyLogo } from '../../data/companyLogos';
 import { getProblemMetadata } from '../../data/problemMetadata';
 import { HintsModal } from './HintsModal';
+import { FlashcardModal } from './FlashcardModal';
+import { getSRSStageInfo, getDaysUntilDue } from '../../services/spacedRepetition';
 
 interface ProblemCardProps {
   problem: Problem;
@@ -20,15 +22,26 @@ const STATUS_OPTIONS: { value: ProblemStatus; label: string }[] = [
 ];
 
 export function ProblemCard({ problem, showDay = false }: ProblemCardProps) {
-  const { getProblemUserData, toggleSolved, setProblemStatus, updateNotes, toggleRevision, setPersonalDifficulty } = useApp();
+  const {
+    getProblemUserData,
+    toggleSolved,
+    setProblemStatus,
+    updateNotes,
+    toggleRevision,
+    setPersonalDifficulty,
+    deleteProblem,
+  } = useApp();
   const userData = getProblemUserData(problem.id);
   const meta = getProblemMetadata(problem.id);
   const [notesOpen, setNotesOpen] = useState(false);
   const [hintsOpen, setHintsOpen] = useState(false);
+  const [flashcardOpen, setFlashcardOpen] = useState(false);
   const [notesText, setNotesText] = useState(userData.notes);
   const [notesSaved, setNotesSaved] = useState(true);
 
   const isSolved = userData.status === 'solved';
+  const srsInfo = getSRSStageInfo(userData.srs);
+  const daysUntilDue = userData.srs?.dueDate ? getDaysUntilDue(userData.srs.dueDate) : null;
 
   const handleSaveNotes = () => {
     updateNotes(problem.id, notesText);
@@ -108,7 +121,23 @@ export function ProblemCard({ problem, showDay = false }: ProblemCardProps) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
             <DifficultyBadge difficulty={problem.difficulty} />
             <TopicBadge topic={problem.topic} />
-            {showDay && (
+            {problem.isCustom && (
+              <span
+                className="chip"
+                style={{
+                  background: 'rgba(236, 72, 153, 0.12)',
+                  color: '#f472b6',
+                  border: '1px solid rgba(236, 72, 153, 0.25)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  fontWeight: 700,
+                }}
+              >
+                <Sparkles size={11} /> Custom
+              </span>
+            )}
+            {showDay && problem.day && (
               <span
                 className="chip"
                 style={{
@@ -140,10 +169,32 @@ export function ProblemCard({ problem, showDay = false }: ProblemCardProps) {
               {statusConfig.label}
             </span>
 
+            {/* Spaced Repetition SRS Level Badge */}
+            {userData.srs && (
+              <span
+                className="chip"
+                style={{
+                  background: srsInfo.bg,
+                  color: srsInfo.color,
+                  border: `1px solid ${srsInfo.border}`,
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+                title={`Spaced Repetition: ${srsInfo.label} (${srsInfo.intervalText}). Due date: ${userData.srs.dueDate}`}
+              >
+                <Brain size={11} color={srsInfo.color} />
+                {daysUntilDue !== null && daysUntilDue <= 0
+                  ? `${srsInfo.badge} Recall Due`
+                  : `${srsInfo.badge} (in ${daysUntilDue}d)`}
+              </span>
+            )}
+
             {/* Authentic Company Tags */}
-            {meta.companies && meta.companies.length > 0 && (
+            {((problem.companies && problem.companies.length > 0) ? problem.companies : meta.companies) && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginLeft: 2, flexWrap: 'wrap' }}>
-                {meta.companies.slice(0, 3).map(comp => (
+                {((problem.companies && problem.companies.length > 0) ? problem.companies : meta.companies).slice(0, 3).map(comp => (
                   <span
                     key={comp}
                     className="chip"
@@ -164,7 +215,7 @@ export function ProblemCard({ problem, showDay = false }: ProblemCardProps) {
                     <span>{comp}</span>
                   </span>
                 ))}
-                {meta.companies.length > 3 && (
+                {((problem.companies && problem.companies.length > 0) ? problem.companies : meta.companies).length > 3 && (
                   <span
                     className="chip"
                     style={{
@@ -174,9 +225,9 @@ export function ProblemCard({ problem, showDay = false }: ProblemCardProps) {
                       fontSize: 10,
                       padding: '2px 5px',
                     }}
-                    title={`Also asked at ${meta.companies.slice(3).join(', ')}`}
+                    title={`Also asked at ${((problem.companies && problem.companies.length > 0) ? problem.companies : meta.companies).slice(3).join(', ')}`}
                   >
-                    +{meta.companies.length - 3}
+                    +{((problem.companies && problem.companies.length > 0) ? problem.companies : meta.companies).length - 3}
                   </span>
                 )}
               </div>
@@ -291,6 +342,43 @@ export function ProblemCard({ problem, showDay = false }: ProblemCardProps) {
             <Lightbulb size={13} color="var(--accent-blue-light)" />
             Hints (3)
           </button>
+
+          {/* Active Recall Flashcard Button */}
+          <button
+            onClick={() => setFlashcardOpen(true)}
+            className="btn btn-sm btn-secondary"
+            style={{
+              borderColor: daysUntilDue !== null && daysUntilDue <= 0 ? 'rgba(239, 68, 68, 0.45)' : 'rgba(168, 85, 247, 0.35)',
+              color: daysUntilDue !== null && daysUntilDue <= 0 ? '#f87171' : '#c084fc',
+              background: daysUntilDue !== null && daysUntilDue <= 0 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(168, 85, 247, 0.08)',
+            }}
+            title="Test recall with Anki/SuperMemo flashcard"
+          >
+            <Brain size={13} color={daysUntilDue !== null && daysUntilDue <= 0 ? '#f87171' : '#c084fc'} />
+            {daysUntilDue !== null && daysUntilDue <= 0 ? 'Recall Due' : 'Recall'}
+          </button>
+
+          {/* Delete custom question */}
+          {problem.isCustom && (
+            <button
+              onClick={() => {
+                if (window.confirm(`Delete custom question "${problem.title}"?`)) {
+                  deleteProblem(problem.id);
+                }
+              }}
+              className="btn btn-sm btn-secondary"
+              style={{
+                borderColor: 'rgba(239, 68, 68, 0.3)',
+                color: '#f87171',
+                background: 'rgba(239, 68, 68, 0.08)',
+                padding: '6px 9px',
+              }}
+              title="Delete question from library"
+              aria-label="Delete question"
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
         </div>
 
         {/* Right Side: Status Selector & Rating */}
@@ -423,6 +511,14 @@ export function ProblemCard({ problem, showDay = false }: ProblemCardProps) {
       {/* 3-Tier Progressive Hints Modal */}
       {hintsOpen && (
         <HintsModal problem={problem} onClose={() => setHintsOpen(false)} />
+      )}
+
+      {/* Active Recall Flashcard Modal */}
+      {flashcardOpen && (
+        <FlashcardModal
+          problems={[problem]}
+          onClose={() => setFlashcardOpen(false)}
+        />
       )}
     </div>
   );

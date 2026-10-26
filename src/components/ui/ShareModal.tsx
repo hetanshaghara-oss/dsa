@@ -10,11 +10,11 @@ export function ShareModal({ onClose }: ShareModalProps) {
   const { analytics, store } = useApp();
   const [copied, setCopied] = useState(false);
 
-  const shareText = `🚀 Conquered Day ${analytics.currentDay} of the 30-Day DSA Challenge!\n\n` +
-    `✅ Problems Solved: ${analytics.completedProblems}/60 (${analytics.completionPct}%)\n` +
+  const shareText = `🚀 Conquered ${analytics.completedProblems} questions on the DSA Challenge platform!\n\n` +
+    `✅ Questions Solved: ${analytics.completedProblems}/${analytics.totalProblems} (${analytics.completionPct}%)\n` +
     `🔥 Current Streak: ${analytics.currentStreak} day${analytics.currentStreak !== 1 ? 's' : ''}\n` +
-    `📚 Mastering Stack, Queue, Linked List & Binary Tree in C++.\n\n` +
-    `#30DaysOfCode #DSA #LeetCode #CodingChallenge #Cpp`;
+    `📚 Mastering DSA in C++.\n\n` +
+    `#DSA #LeetCode #CodingChallenge #Cpp #Algorithms`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(shareText);
@@ -103,7 +103,7 @@ export function ShareModal({ onClose }: ShareModalProps) {
                     DSA <span className="gradient-text">30</span>
                   </div>
                   <div style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
-                    The 60 Problem Challenge
+                    Algorithm Challenge
                   </div>
                 </div>
               </div>
@@ -138,11 +138,11 @@ export function ShareModal({ onClose }: ShareModalProps) {
                   textAlign: 'center',
                 }}
               >
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Current</div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Active</div>
                 <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--accent-blue-light)', marginTop: 2 }}>
                   Day {analytics.currentDay}
                 </div>
-                <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>of 30 Days</div>
+                <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Streak Habit</div>
               </div>
 
               <div
@@ -156,9 +156,9 @@ export function ShareModal({ onClose }: ShareModalProps) {
               >
                 <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Solved</div>
                 <div style={{ fontSize: 20, fontWeight: 900, color: '#34d399', marginTop: 2 }}>
-                  {analytics.completedProblems}/60
+                  {analytics.completedProblems}/{analytics.totalProblems}
                 </div>
-                <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Problems</div>
+                <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Questions</div>
               </div>
 
               <div

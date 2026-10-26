@@ -1,5 +1,44 @@
 export type Difficulty = 'Easy' | 'Medium' | 'Hard';
-export type Topic = 'Stack' | 'Queue' | 'Deque' | 'Linked List' | 'Binary Tree' | 'Mixed';
+export type Topic =
+  | 'Stack'
+  | 'Queue'
+  | 'Deque'
+  | 'Linked List'
+  | 'Binary Tree'
+  | 'Array'
+  | 'String'
+  | 'Hash Table'
+  | 'Two Pointers'
+  | 'Sliding Window'
+  | 'Dynamic Programming'
+  | 'Graph'
+  | 'Heap / Priority Queue'
+  | 'Greedy'
+  | 'Trie'
+  | 'Backtracking'
+  | 'Mixed'
+  | string;
+
+export const COMMON_TOPICS: string[] = [
+  'Stack',
+  'Queue',
+  'Deque',
+  'Linked List',
+  'Binary Tree',
+  'Array',
+  'String',
+  'Hash Table',
+  'Two Pointers',
+  'Sliding Window',
+  'Dynamic Programming',
+  'Graph',
+  'Heap / Priority Queue',
+  'Greedy',
+  'Trie',
+  'Backtracking',
+  'Mixed',
+];
+
 export type ProblemStatus = 'not-started' | 'attempted' | 'solved' | 'needs-revision';
 
 export interface Problem {
@@ -8,10 +47,27 @@ export interface Problem {
   title: string;
   difficulty: Difficulty;
   topic: Topic;
-  day: number;
-  week: number;
+  day?: number;
+  week?: number;
   url: string;
-  orderInDay: 1 | 2;
+  orderInDay?: 1 | 2;
+  isCustom?: boolean;
+  companies?: string[];
+  hint?: string;
+  solutionNotes?: string;
+  createdAt?: string;
+}
+
+export type SpacedRepetitionGrade = 'hard' | 'medium' | 'easy';
+
+export interface SpacedRepetitionData {
+  interval: number; // in days: 1, 3, 7, 14, 30, ...
+  step: number; // index in ladder: 0, 1, 2, 3, 4, 5+
+  easeFactor: number; // default 2.5
+  dueDate: string; // YYYY-MM-DD
+  lastReviewedAt?: string; // ISO string
+  reviewCount: number;
+  lastGrade?: SpacedRepetitionGrade;
 }
 
 export interface UserProblemData {
@@ -20,6 +76,7 @@ export interface UserProblemData {
   notes: string;
   needsRevision: boolean;
   personalDifficulty: number; // 1-5
+  srs?: SpacedRepetitionData;
 }
 
 export interface DayInfo {

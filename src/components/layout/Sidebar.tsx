@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -11,8 +12,14 @@ import {
   X,
   Flame,
   CheckCircle2,
+  Plus,
+  Brain,
+  Shield,
+  Smartphone,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { isProblemDue } from '../../services/spacedRepetition';
+import { StreakShieldModal } from '../ui/StreakShieldModal';
 
 interface SidebarProps {
   open: boolean;
@@ -21,16 +28,27 @@ interface SidebarProps {
 
 const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard', end: true },
-  { to: '/challenge', icon: Calendar, label: 'Daily Challenge' },
-  { to: '/problems', icon: BookOpen, label: 'All Problems' },
+  { to: '/problems', icon: BookOpen, label: 'Question Library' },
+  { to: '/challenge', icon: Calendar, label: '30-Day Track' },
   { to: '/analytics', icon: BarChart2, label: 'Progress & Analytics' },
-  { to: '/revision', icon: Bookmark, label: 'Revision List' },
+  { to: '/revision', icon: Brain, label: 'Spaced Repetition' },
   { to: '/resources', icon: Code2, label: 'C++ STL & Resources' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
 export function Sidebar({ open, onClose }: SidebarProps) {
-  const { analytics } = useApp();
+  const {
+    analytics,
+    setAddProblemModalOpen,
+    allProblems,
+    getProblemUserData,
+    canInstallPWA,
+    installPWA,
+    isStandalone,
+  } = useApp();
+  const [shieldModalOpen, setShieldModalOpen] = useState(false);
+
+  const dueCount = allProblems.filter(p => isProblemDue(getProblemUserData(p.id))).length;
 
   return (
     <>
@@ -63,7 +81,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                 DSA <span className="gradient-text">30</span>
               </div>
               <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.6px', marginTop: 3 }}>
-                60 Problem Challenge
+                {analytics.totalProblems} Questions Library
               </div>
             </div>
 
@@ -106,14 +124,35 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               <div className="progress-fill" style={{ width: `${analytics.completionPct}%` }} />
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 10.5, color: 'var(--text-muted)' }}>
-              <span>{analytics.completedProblems}/60 Solved</span>
-              <span>Day {analytics.currentDay}/30</span>
+              <span>{analytics.completedProblems}/{analytics.totalProblems} Solved</span>
+              <span>{analytics.remainingProblems} Left</span>
             </div>
           </div>
         </div>
 
+        {/* Quick Add Question Button in Sidebar */}
+        <div style={{ padding: '14px 14px 0' }}>
+          <button
+            onClick={() => {
+              setAddProblemModalOpen(true);
+              onClose();
+            }}
+            className="btn btn-primary"
+            style={{
+              width: '100%',
+              padding: '9px 14px',
+              fontSize: 13,
+              fontWeight: 700,
+              gap: 6,
+              borderRadius: 10,
+            }}
+          >
+            <Plus size={15} /> Add Question
+          </button>
+        </div>
+
         {/* Navigation Menu */}
-        <nav style={{ flex: 1, padding: '16px 12px', overflowY: 'auto' }}>
+        <nav style={{ flex: 1, padding: '14px 12px', overflowY: 'auto' }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px', padding: '0 10px 8px' }}>
             Menu
           </div>
@@ -126,7 +165,22 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
             >
               <item.icon size={17} />
-              <span>{item.label}</span>
+              <span style={{ flex: 1 }}>{item.label}</span>
+              {item.to === '/revision' && dueCount > 0 && (
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    padding: '1px 6px',
+                    borderRadius: 999,
+                    background: '#f59e0b',
+                    color: '#000',
+                  }}
+                  title={`${dueCount} review${dueCount !== 1 ? 's' : ''} due today`}
+                >
+                  {dueCount}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>
@@ -169,8 +223,67 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               }}
             />
           </div>
+
+          {/* Duolingo Streak Shield Status Button */}
+          <button
+            onClick={() => setShieldModalOpen(true)}
+            style={{
+              marginTop: 10,
+              width: '100%',
+              padding: '6px 10px',
+              borderRadius: 8,
+              background: analytics.streakFreezesAvailable > 0 ? 'rgba(56, 189, 248, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+              border: analytics.streakFreezesAvailable > 0 ? '1px solid rgba(56, 189, 248, 0.25)' : '1px solid rgba(239, 68, 68, 0.25)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+              color: analytics.streakFreezesAvailable > 0 ? '#38bdf8' : '#f87171',
+              fontSize: 11.5,
+              fontWeight: 700,
+            }}
+            title="Manage Duolingo-style streak freeze shields"
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Shield size={13} fill={analytics.streakFreezesAvailable > 0 ? '#38bdf8' : 'none'} />
+              {analytics.streakFreezesAvailable > 0
+                ? `${analytics.streakFreezesAvailable} Shield${analytics.streakFreezesAvailable !== 1 ? 's' : ''} Active`
+                : 'Shields Depleted'}
+            </span>
+            <span style={{ fontSize: 10.5, opacity: 0.85 }}>Manage</span>
+          </button>
+
+          {/* PWA Install Button if available */}
+          {canInstallPWA && !isStandalone && (
+            <button
+              onClick={installPWA}
+              style={{
+                marginTop: 8,
+                width: '100%',
+                padding: '7px 10px',
+                borderRadius: 8,
+                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(6, 182, 212, 0.2))',
+                border: '1px solid rgba(99, 102, 241, 0.4)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                cursor: 'pointer',
+                color: 'white',
+                fontSize: 12,
+                fontWeight: 700,
+              }}
+            >
+              <Smartphone size={13} /> Install App
+            </button>
+          )}
         </div>
       </aside>
+
+      {/* Streak Shield Modal */}
+      {shieldModalOpen && (
+        <StreakShieldModal onClose={() => setShieldModalOpen(false)} />
+      )}
     </>
   );
 }
